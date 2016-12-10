@@ -1,0 +1,19 @@
+[package]
+name = "digest-writer"
+description = """
+    Adds an `io::Write` interface on top of `digest::Digest`
+"""
+license = "MIT/Apache-2.0"
+readme = "README.rst"
+keywords = ["digest", "write", "writer"]
+homepage = "http://github.com/tailhook/digest-writer"
+documentation = "http://docs.rs/digest-writer"
+version = "0.1.0"
+authors = ["paul@colomiets.name"]
+
+[dependencies]
+digest = "0.3.0"
+generic-array = "0.5.1"
+
+[dev-dependencies]
+sha2 = "0.3.0"
