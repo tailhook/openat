@@ -30,8 +30,8 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn name(&self) -> &Path {
-        OsStr::from_bytes(self.name.to_bytes()).as_ref()
+    pub fn file_name(&self) -> &OsStr {
+        OsStr::from_bytes(self.name.to_bytes())
     }
 }
 

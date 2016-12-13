@@ -90,7 +90,9 @@ mod test {
         let dir = Dir::open("src").unwrap();
         let me = dir.list_dir(".").unwrap();
         assert!(me.collect::<Result<Vec<_>, _>>().unwrap()
-                .iter().find(|x| x.name() == Path::new("lib.rs"))
+                .iter().find(|x| {
+                    x.file_name() == Path::new("lib.rs").as_os_str()
+                })
                 .is_some());
     }
 }
