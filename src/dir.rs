@@ -2,18 +2,17 @@ use std::io;
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
-use std::sync::Arc;
 
 use libc;
 
-use {Dir, DirParam, DirFd};
+use {Dir, DirFd};
 
 
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
     /// workding directory (AT_FDCWD)
     pub fn cwd() -> Dir {
-        Dir(DirParam::Cwd)
+        Dir(DirFd::Cwd)
     }
 
     /// Open a directory descriptor at specified path
@@ -24,15 +23,20 @@ impl Dir {
         if fd < 0 {
             Err(io::Error::last_os_error())
         } else {
-            Ok(Dir(DirParam::Fd(Arc::new(DirFd(fd)))))
+            Ok(Dir(DirFd::Fd(fd)))
         }
     }
 }
 
 impl Drop for DirFd {
     fn drop(&mut self) {
-        unsafe {
-            libc::close(self.0);
+        match *self {
+            DirFd::Fd(x) => {
+                unsafe {
+                    libc::close(x);
+                }
+            }
+            DirFd::Cwd => {}
         }
     }
 }
