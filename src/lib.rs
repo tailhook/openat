@@ -3,6 +3,10 @@
 extern crate libc;
 
 mod dir;
+mod ffi;
+mod list;
+
+pub use list::Directory;
 
 use std::os::unix::io::RawFd;
 
