@@ -6,7 +6,7 @@ Openat crate
 :Documentation: http://docs.rs/openat/
 
 
-The interface to ``openat``, ``symlinkat``, and other function in ``*at``
+The interface to ``openat``, ``symlinkat``, and other functions in ``*at``
 family.
 
 
