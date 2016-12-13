@@ -15,6 +15,11 @@ commands:
     container: ubuntu
     run: [cargo, test]
 
+  bench: !Command
+    description: Run benchmarks
+    container: nightly
+    run: [cargo, bench]
+
 containers:
 
   ubuntu:
@@ -24,6 +29,20 @@ containers:
 
     - !TarInstall
       url: "https://static.rust-lang.org/dist/rust-1.13.0-x86_64-unknown-linux-gnu.tar.gz"
+      script: "./install.sh --prefix=/usr \
+                --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
+
+    environ:
+      HOME: /work/target
+      RUST_BACKTRACE: 1
+
+  nightly:
+    setup:
+    - !Ubuntu xenial
+    - !Install [ca-certificates, git, build-essential]
+
+    - !TarInstall
+      url: "https://static.rust-lang.org/dist/rust-nightly-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
 
