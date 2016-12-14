@@ -5,9 +5,12 @@ extern crate libc;
 mod dir;
 mod ffi;
 mod list;
+mod name;
 
 pub use list::Directory;
+pub use name::AsPath;
 
+use std::ffi::CString;
 use std::os::unix::io::RawFd;
 
 /// A safe wrapper around directory file descriptor
@@ -21,6 +24,12 @@ pub struct Dir(DirFd);
 enum DirFd {
     Fd(RawFd),
     Cwd,
+}
+
+/// Entry returned by iterating over `Directory` iterator
+#[derive(Debug)]
+pub struct Entry {
+    name: CString,
 }
 
 #[cfg(test)]

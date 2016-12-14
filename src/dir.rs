@@ -1,14 +1,14 @@
 use std::io;
-use std::ffi::CString;
+use std::ffi::{OsString, CStr};
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::os::unix::ffi::OsStrExt;
-use std::path::Path;
+use std::os::unix::ffi::{OsStringExt};
+use std::path::{PathBuf};
 
 use libc;
 use ffi;
 use list::{Directory, open_dir};
 
-use {Dir, DirFd};
+use {Dir, DirFd, AsPath};
 
 
 impl Dir {
@@ -20,12 +20,11 @@ impl Dir {
 
     /// Open a directory descriptor at specified path
     // TODO(tailhook) maybe accept only absolute paths?
-    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Dir> {
-        Dir::_open(path.as_ref())
+    pub fn open<P: AsPath>(path: P) -> io::Result<Dir> {
+        Dir::_open(to_cstr(path)?.as_ref())
     }
 
-    fn _open(path: &Path) -> io::Result<Dir> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+    fn _open(path: &CStr) -> io::Result<Dir> {
         let fd = unsafe { libc::open(path.as_ptr(), ffi::O_PATH) };
         if fd < 0 {
             Err(io::Error::last_os_error())
@@ -34,12 +33,50 @@ impl Dir {
         }
     }
 
-    /// List subdirectory of this dir (or this directory itself, is empty path
-    /// is specified)
-    pub fn list_dir<P: AsRef<Path>>(&self, path: P) -> io::Result<Directory> {
-        open_dir(self, path.as_ref())
+    /// List subdirectory of this dir
+    ///
+    /// You can list directory itself if `"."` is specified as path.
+    pub fn list_dir<P: AsPath>(&self, path: P) -> io::Result<Directory> {
+        open_dir(self, to_cstr(path)?.as_ref())
     }
 
+    /// Open subdirectory
+    pub fn sub_dir<P: AsPath>(&self, path: P) -> io::Result<Dir> {
+        self._sub_dir(to_cstr(path)?.as_ref())
+    }
+
+    fn _sub_dir(&self, path: &CStr) -> io::Result<Dir> {
+        let fd = unsafe {
+            libc::openat(self.as_raw_fd(),
+                        path.as_ptr(),
+                        ffi::O_PATH)
+        };
+        if fd < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(Dir(DirFd::Fd(fd)))
+        }
+    }
+
+    /// Read link in this directory
+    pub fn read_link<P: AsPath>(&self, path: P) -> io::Result<PathBuf> {
+        self._read_link(to_cstr(path)?.as_ref())
+    }
+
+    fn _read_link(&self, path: &CStr) -> io::Result<PathBuf> {
+        let mut buf = vec![0u8; 4096];
+        let res = unsafe {
+            libc::readlinkat(self.as_raw_fd(),
+                        path.as_ptr(),
+                        buf.as_mut_ptr() as *mut i8, buf.len())
+        };
+        if res < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            buf.truncate(res as usize);
+            Ok(OsString::from_vec(buf).into())
+        }
+    }
 }
 
 impl AsRawFd for Dir {
@@ -62,6 +99,14 @@ impl Drop for DirFd {
             DirFd::Cwd => {}
         }
     }
+}
+
+fn to_cstr<P: AsPath>(path: P) -> io::Result<P::Buffer> {
+    path.to_path()
+    .ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput,
+                       "nul byte in file name")
+    })
 }
 
 #[cfg(test)]

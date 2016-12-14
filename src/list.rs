@@ -1,14 +1,13 @@
 use std::io;
 use std::ptr;
-use std::path::Path;
-use std::ffi::{CString, CStr, OsStr};
+use std::ffi::{CStr, OsStr};
 use std::os::unix::io::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
 
 use ffi;
 use libc;
 
-use {Dir};
+use {Dir, Entry};
 
 
 // We have such weird constants because C types are ugly
@@ -24,12 +23,8 @@ pub struct Directory {
     dir: *mut libc::DIR,
 }
 
-#[derive(Debug)]
-pub struct Entry {
-    name: CString,
-}
-
 impl Entry {
+    /// Returns the file name of the this entry
     pub fn file_name(&self) -> &OsStr {
         OsStr::from_bytes(self.name.to_bytes())
     }
@@ -54,8 +49,7 @@ impl Directory {
     }
 }
 
-pub fn open_dir(dir: &Dir, path: &Path) -> io::Result<Directory> {
-    let path = CString::new(path.as_os_str().as_bytes())?;
+pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<Directory> {
     let dir_fd = unsafe {
         libc::openat(dir.as_raw_fd(), path.as_ptr(), libc::O_DIRECTORY)
     };
