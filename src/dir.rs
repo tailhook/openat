@@ -1,6 +1,7 @@
 use std::io;
 use std::ffi::{OsString, CStr};
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::fs::File;
+use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
 use std::os::unix::ffi::{OsStringExt};
 use std::path::{PathBuf};
 
@@ -25,7 +26,9 @@ impl Dir {
     }
 
     fn _open(path: &CStr) -> io::Result<Dir> {
-        let fd = unsafe { libc::open(path.as_ptr(), ffi::O_PATH) };
+        let fd = unsafe {
+            libc::open(path.as_ptr(), ffi::O_PATH|libc::O_CLOEXEC)
+        };
         if fd < 0 {
             Err(io::Error::last_os_error())
         } else {
@@ -49,7 +52,7 @@ impl Dir {
         let fd = unsafe {
             libc::openat(self.as_raw_fd(),
                         path.as_ptr(),
-                        ffi::O_PATH)
+                        ffi::O_PATH|libc::O_CLOEXEC|libc::O_NOFOLLOW)
         };
         if fd < 0 {
             Err(io::Error::last_os_error())
@@ -75,6 +78,30 @@ impl Dir {
         } else {
             buf.truncate(res as usize);
             Ok(OsString::from_vec(buf).into())
+        }
+    }
+
+    /// Open file for reading in this directory
+    pub fn open_file<P: AsPath>(&self, path: P) -> io::Result<File> {
+        self._open_file(to_cstr(path)?.as_ref(),
+            libc::O_RDONLY)
+    }
+
+    /// Create file for writing (and truncate) in this directory
+    pub fn create_file<P: AsPath>(&self, path: P) -> io::Result<File> {
+        self._open_file(to_cstr(path)?.as_ref(),
+            libc::O_CREAT|libc::O_WRONLY|libc::O_TRUNC)
+    }
+
+    fn _open_file(&self, path: &CStr, flags: libc::c_int) -> io::Result<File> {
+        unsafe {
+            let res = libc::openat(self.as_raw_fd(), path.as_ptr(),
+                            flags|libc::O_CLOEXEC|libc::O_NOFOLLOW);
+            if res < 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(File::from_raw_fd(res))
+            }
         }
     }
 }
@@ -111,6 +138,7 @@ fn to_cstr<P: AsPath>(path: P) -> io::Result<P::Buffer> {
 
 #[cfg(test)]
 mod test {
+    use std::io::{Read};
     use std::path::Path;
     use {Dir};
 
@@ -122,6 +150,15 @@ mod test {
     #[test]
     fn test_open_file() {
         Dir::open("src/lib.rs").unwrap();
+    }
+
+    #[test]
+    fn test_read_file() {
+        let dir = Dir::open("src").unwrap();
+        let mut buf = String::new();
+        dir.open_file("lib.rs").unwrap()
+            .read_to_string(&mut buf).unwrap();
+        assert!(buf.find("extern crate libc;").is_some());
     }
 
     #[test]
