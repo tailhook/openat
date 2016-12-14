@@ -84,19 +84,25 @@ impl Dir {
     /// Open file for reading in this directory
     pub fn open_file<P: AsPath>(&self, path: P) -> io::Result<File> {
         self._open_file(to_cstr(path)?.as_ref(),
-            libc::O_RDONLY)
+            libc::O_RDONLY, 0)
     }
 
     /// Create file for writing (and truncate) in this directory
-    pub fn create_file<P: AsPath>(&self, path: P) -> io::Result<File> {
+    pub fn create_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
+        -> io::Result<File>
+    {
         self._open_file(to_cstr(path)?.as_ref(),
-            libc::O_CREAT|libc::O_WRONLY|libc::O_TRUNC)
+            libc::O_CREAT|libc::O_WRONLY|libc::O_TRUNC,
+            mode)
     }
 
-    fn _open_file(&self, path: &CStr, flags: libc::c_int) -> io::Result<File> {
+    fn _open_file(&self, path: &CStr, flags: libc::c_int, mode: libc::mode_t)
+        -> io::Result<File>
+    {
         unsafe {
             let res = libc::openat(self.as_raw_fd(), path.as_ptr(),
-                            flags|libc::O_CLOEXEC|libc::O_NOFOLLOW);
+                            flags|libc::O_CLOEXEC|libc::O_NOFOLLOW,
+                            mode);
             if res < 0 {
                 Err(io::Error::last_os_error())
             } else {
