@@ -7,7 +7,7 @@ use std::os::unix::ffi::OsStrExt;
 use ffi;
 use libc;
 
-use {Dir, Entry};
+use {Dir, Entry, SimpleType};
 
 
 // We have such weird constants because C types are ugly
@@ -27,6 +27,10 @@ impl Entry {
     /// Returns the file name of the this entry
     pub fn file_name(&self) -> &OsStr {
         OsStr::from_bytes(self.name.to_bytes())
+    }
+    /// Returns simplified type of entry
+    pub fn simple_type(&self) -> Option<SimpleType> {
+        self.file_type
     }
 }
 
@@ -79,6 +83,13 @@ impl Iterator for Directory {
                         return Some(Ok(Entry {
                             name: CStr::from_ptr((&(*e).d_name).as_ptr())
                                 .to_owned(),
+                            file_type: match (*e).d_type {
+                                0 => None,
+                                libc::DT_REG => Some(SimpleType::File),
+                                libc::DT_DIR => Some(SimpleType::Dir),
+                                libc::DT_LNK => Some(SimpleType::Symlink),
+                                _ => Some(SimpleType::Other),
+                            },
                         }));
                     }
                 }

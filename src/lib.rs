@@ -6,10 +6,12 @@ mod dir;
 mod ffi;
 mod list;
 mod name;
+mod filetype;
 
 pub use list::Directory;
 pub use name::AsPath;
 pub use dir::rename;
+pub use filetype::SimpleType;
 
 use std::ffi::CString;
 use std::os::unix::io::RawFd;
@@ -31,6 +33,7 @@ enum DirFd {
 #[derive(Debug)]
 pub struct Entry {
     name: CString,
+    file_type: Option<SimpleType>,
 }
 
 #[cfg(test)]
