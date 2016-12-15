@@ -132,7 +132,7 @@ impl Dir {
     }
 
     /// Create a subdirectory in this directory
-    pub fn create_dir<P: AsPath, R: AsPath>(&self, path: P, mode: libc::mode_t)
+    pub fn create_dir<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<()>
     {
         self._create_dir(to_cstr(path)?.as_ref(), mode)
@@ -153,6 +153,31 @@ impl Dir {
         -> io::Result<()>
     {
         rename(self, to_cstr(old)?.as_ref(), self, to_cstr(new)?.as_ref())
+    }
+
+    /// Remove a subdirectory in this directory
+    ///
+    /// Note only empty directory may be removed
+    pub fn remove_dir<P: AsPath>(&self, path: P)
+        -> io::Result<()>
+    {
+        self._unlink(to_cstr(path)?.as_ref(), 0)
+    }
+    /// Remove a file in this directory
+    pub fn remove_file<P: AsPath>(&self, path: P)
+        -> io::Result<()>
+    {
+        self._unlink(to_cstr(path)?.as_ref(), ffi::AT_REMOVEDIR)
+    }
+    fn _unlink(&self, path: &CStr, flags: libc::c_int) -> io::Result<()> {
+        unsafe {
+            let res = libc::unlinkat(self.as_raw_fd(), path.as_ptr(), flags);
+            if res < 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        }
     }
 }
 
