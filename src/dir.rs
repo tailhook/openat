@@ -7,7 +7,7 @@ use std::path::{PathBuf};
 
 use libc;
 use ffi;
-use list::{Directory, open_dir};
+use list::{DirIter, open_dir};
 
 use {Dir, DirFd, AsPath};
 
@@ -39,7 +39,7 @@ impl Dir {
     /// List subdirectory of this dir
     ///
     /// You can list directory itself if `"."` is specified as path.
-    pub fn list_dir<P: AsPath>(&self, path: P) -> io::Result<Directory> {
+    pub fn list_dir<P: AsPath>(&self, path: P) -> io::Result<DirIter> {
         open_dir(self, to_cstr(path)?.as_ref())
     }
 

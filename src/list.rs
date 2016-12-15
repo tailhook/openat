@@ -19,7 +19,7 @@ const DOTDOT: [i8; 3] = [b'.' as i8, b'.' as i8, 0];
 ///
 /// Created using `Dir::list_dir()`
 #[derive(Debug)]
-pub struct Directory {
+pub struct DirIter {
     dir: *mut libc::DIR,
 }
 
@@ -34,7 +34,7 @@ impl Entry {
     }
 }
 
-impl Directory {
+impl DirIter {
 
     unsafe fn next_entry(&mut self) -> io::Result<Option<*const libc::dirent>>
     {
@@ -53,7 +53,7 @@ impl Directory {
     }
 }
 
-pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<Directory> {
+pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<DirIter> {
     let dir_fd = unsafe {
         libc::openat(dir.as_raw_fd(), path.as_ptr(), libc::O_DIRECTORY)
     };
@@ -64,12 +64,12 @@ pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<Directory> {
         if dir == ptr::null_mut() {
             Err(io::Error::last_os_error())
         } else {
-            Ok(Directory { dir: dir })
+            Ok(DirIter { dir: dir })
         }
     }
 }
 
-impl Iterator for Directory {
+impl Iterator for DirIter {
     type Item = io::Result<Entry>;
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
@@ -98,7 +98,7 @@ impl Iterator for Directory {
     }
 }
 
-impl Drop for Directory {
+impl Drop for DirIter {
     fn drop(&mut self) {
         unsafe {
             libc::closedir(self.dir);
