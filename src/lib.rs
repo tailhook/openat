@@ -9,6 +9,7 @@ mod name;
 
 pub use list::Directory;
 pub use name::AsPath;
+pub use dir::rename;
 
 use std::ffi::CString;
 use std::os::unix::io::RawFd;

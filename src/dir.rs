@@ -110,6 +110,75 @@ impl Dir {
             }
         }
     }
+
+    /// Make a symlink in this directory
+    ///
+    /// Note: the order of arguments differ from `symlinkat`
+    pub fn symlink<P: AsPath, R: AsPath>(&self, path: P, value: P)
+        -> io::Result<()>
+    {
+        self._symlink(to_cstr(path)?.as_ref(), to_cstr(value)?.as_ref())
+    }
+    fn _symlink(&self, path: &CStr, link: &CStr) -> io::Result<()> {
+        unsafe {
+            let res = libc::symlinkat(link.as_ptr(),
+                self.as_raw_fd(), path.as_ptr());
+            if res < 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// Create a subdirectory in this directory
+    pub fn create_dir<P: AsPath, R: AsPath>(&self, path: P, mode: libc::mode_t)
+        -> io::Result<()>
+    {
+        self._create_dir(to_cstr(path)?.as_ref(), mode)
+    }
+    fn _create_dir(&self, path: &CStr, mode: libc::mode_t) -> io::Result<()> {
+        unsafe {
+            let res = libc::mkdirat(self.as_raw_fd(), path.as_ptr(), mode);
+            if res < 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// Rename a file in this directory to another name (keeping same dir)
+    pub fn local_rename<P: AsPath, R: AsPath>(&self, old: P, new: P)
+        -> io::Result<()>
+    {
+        rename(self, to_cstr(old)?.as_ref(), self, to_cstr(new)?.as_ref())
+    }
+}
+
+/// Rename (move) a file between directories
+///
+/// Files must be on a single filesystem anyway. This funtion does **not**
+/// fallback to copying if needed.
+pub fn rename<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R)
+    -> io::Result<()>
+    where P: AsPath, R: AsPath,
+{
+    _rename(old_dir, to_cstr(old)?.as_ref(), new_dir, to_cstr(new)?.as_ref())
+}
+
+fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr)
+    -> io::Result<()>
+{
+    unsafe {
+        let res = libc::renameat(old_dir.as_raw_fd(), old.as_ptr(),
+            new_dir.as_raw_fd(), new.as_ptr());
+        if res < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl AsRawFd for Dir {
