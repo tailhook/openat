@@ -1,5 +1,5 @@
 use std::ffi::{OsStr, CStr, CString};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::os::unix::ffi::OsStrExt;
 
 use {Entry};
@@ -20,6 +20,13 @@ pub trait AsPath {
 }
 
 impl<'a> AsPath for &'a Path {
+    type Buffer = CString;
+    fn to_path(self) -> Option<CString> {
+        CString::new(self.as_os_str().as_bytes()).ok()
+    }
+}
+
+impl<'a> AsPath for &'a PathBuf {
     type Buffer = CString;
     fn to_path(self) -> Option<CString> {
         CString::new(self.as_os_str().as_bytes()).ok()
