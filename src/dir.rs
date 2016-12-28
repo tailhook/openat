@@ -1,4 +1,5 @@
 use std::io;
+use std::mem;
 use std::ffi::{OsString, CStr};
 use std::fs::{File, read_link};
 use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
@@ -7,6 +8,7 @@ use std::path::{PathBuf};
 
 use libc;
 use ffi;
+use metadata::{self, Metadata};
 use list::{DirIter, open_dir};
 
 use {Dir, DirFd, AsPath};
@@ -190,6 +192,24 @@ impl Dir {
             DirFd::Cwd => read_link(format!("/proc/self/cwd")),
         }
     }
+
+    /// Remove a file in this directory
+    pub fn metadata<P: AsPath>(&self, path: P) -> io::Result<Metadata> {
+        self._stat(to_cstr(path)?.as_ref(), ffi::AT_SYMLINK_NOFOLLOW)
+    }
+    fn _stat(&self, path: &CStr, flags: libc::c_int) -> io::Result<Metadata> {
+        unsafe {
+            let mut stat = mem::zeroed();
+            let res = libc::fstatat(self.as_raw_fd(), path.as_ptr(),
+                &mut stat, flags);
+            if res < 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(metadata::new(stat))
+            }
+        }
+    }
+
 }
 
 /// Rename (move) a file between directories

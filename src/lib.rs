@@ -50,11 +50,13 @@ mod ffi;
 mod list;
 mod name;
 mod filetype;
+mod metadata;
 
 pub use list::DirIter;
 pub use name::AsPath;
 pub use dir::rename;
 pub use filetype::SimpleType;
+pub use metadata::Metadata;
 
 use std::ffi::CString;
 use std::os::unix::io::RawFd;
