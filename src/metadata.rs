@@ -16,13 +16,13 @@ pub struct Metadata {
 
 impl Metadata {
     /// Returns simplified type of the directory entry
-    pub fn simple_type(&self) -> Option<SimpleType> {
+    pub fn simple_type(&self) -> SimpleType {
         let typ = self.stat.st_mode & libc::S_IFMT;
         match typ {
-            libc::S_IFREG => Some(SimpleType::File),
-            libc::S_IFDIR => Some(SimpleType::Dir),
-            libc::S_IFLNK => Some(SimpleType::Symlink),
-            _ => Some(SimpleType::Other)
+            libc::S_IFREG => SimpleType::File,
+            libc::S_IFDIR => SimpleType::Dir,
+            libc::S_IFLNK => SimpleType::Symlink,
+            _ => SimpleType::Other,
         }
     }
     /// Returns underlying stat structure
@@ -31,11 +31,11 @@ impl Metadata {
     }
     /// Returns `true` if the entry is a regular file
     pub fn is_file(&self) -> bool {
-        self.simple_type() == Some(SimpleType::File)
+        self.simple_type() == SimpleType::File
     }
     /// Returns `true` if the entry is a directory
     pub fn is_dir(&self) -> bool {
-        self.simple_type() == Some(SimpleType::File)
+        self.simple_type() == SimpleType::File
     }
     /// Returns permissions of the entry
     pub fn permissions(&self) -> Permissions {
