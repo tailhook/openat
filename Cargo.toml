@@ -8,7 +8,7 @@ readme = "README.rst"
 keywords = ["open", "openat", "filesystem", "fs"]
 homepage = "http://github.com/tailhook/openat"
 documentation = "http://docs.rs/openat"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
