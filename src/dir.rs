@@ -1,6 +1,6 @@
 use std::io;
 use std::ffi::{OsString, CStr};
-use std::fs::File;
+use std::fs::{File, read_link};
 use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
 use std::os::unix::ffi::{OsStringExt};
 use std::path::{PathBuf};
@@ -177,6 +177,17 @@ impl Dir {
             } else {
                 Ok(())
             }
+        }
+    }
+
+    /// Get the path of this directory (if possible)
+    ///
+    /// This uses symlinks in `/proc/self`, they sometimes may not be
+    /// available so use with care.
+    pub fn recover_path(&self) -> io::Result<PathBuf> {
+        match self.0 {
+            DirFd::Fd(fd) => read_link(format!("/proc/self/fd/{}", fd)),
+            DirFd::Cwd => read_link(format!("/proc/self/cwd")),
         }
     }
 }
