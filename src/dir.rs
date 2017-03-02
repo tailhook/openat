@@ -193,7 +193,7 @@ impl Dir {
         }
     }
 
-    /// Remove a file in this directory
+    /// Returns metadata of an entry in this directory
     pub fn metadata<P: AsPath>(&self, path: P) -> io::Result<Metadata> {
         self._stat(to_cstr(path)?.as_ref(), ffi::AT_SYMLINK_NOFOLLOW)
     }
