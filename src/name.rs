@@ -47,6 +47,13 @@ impl<'a> AsPath for &'a str {
     }
 }
 
+impl<'a> AsPath for &'a String {
+    type Buffer = CString;
+    fn to_path(self) -> Option<CString> {
+        CString::new(self.as_bytes()).ok()
+    }
+}
+
 impl<'a> AsPath for &'a CStr {
     type Buffer = &'a CStr;
     fn to_path(self) -> Option<&'a CStr> {
