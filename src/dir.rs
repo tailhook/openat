@@ -151,7 +151,7 @@ impl Dir {
     }
 
     /// Rename a file in this directory to another name (keeping same dir)
-    pub fn local_rename<P: AsPath, R: AsPath>(&self, old: P, new: P)
+    pub fn local_rename<P: AsPath, R: AsPath>(&self, old: P, new: R)
         -> io::Result<()>
     {
         rename(self, to_cstr(old)?.as_ref(), self, to_cstr(new)?.as_ref())
