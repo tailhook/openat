@@ -35,7 +35,7 @@ impl Metadata {
     }
     /// Returns `true` if the entry is a directory
     pub fn is_dir(&self) -> bool {
-        self.simple_type() == SimpleType::File
+        self.simple_type() == SimpleType::Dir
     }
     /// Returns permissions of the entry
     pub fn permissions(&self) -> Permissions {
