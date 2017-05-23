@@ -35,7 +35,7 @@ impl Metadata {
     }
     /// Returns `true` if the entry is a directory
     pub fn is_dir(&self) -> bool {
-        self.simple_type() == SimpleType::File
+        self.simple_type() == SimpleType::Dir
     }
     /// Returns permissions of the entry
     pub fn permissions(&self) -> Permissions {
@@ -49,4 +49,27 @@ impl Metadata {
 
 pub fn new(stat: libc::stat) -> Metadata {
     Metadata { stat: stat }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn dir() {
+        let d = ::Dir::open(".").unwrap();
+        let m = d.metadata("src").unwrap();
+        assert_eq!(m.simple_type(), SimpleType::Dir);
+        assert!(m.is_dir());
+        assert!(!m.is_file());
+    }
+
+    #[test]
+    fn file() {
+        let d = ::Dir::open("src").unwrap();
+        let m = d.metadata("lib.rs").unwrap();
+        assert_eq!(m.simple_type(), SimpleType::File);
+        assert!(!m.is_dir());
+        assert!(m.is_file());
+    }
 }
