@@ -25,6 +25,7 @@
 //! * `Dir::read_link()`
 //! * `Dir::open_file()`
 //! * `Dir::create_file()`
+//! * `Dir::update_file()`
 //! * `Dir::create_dir()`
 //! * `Dir::symlink()`
 //! * `Dir::local_rename()`

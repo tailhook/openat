@@ -98,6 +98,15 @@ impl Dir {
             mode)
     }
 
+    /// Open file for reading and writing without truncation, create if needed
+    pub fn update_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
+        -> io::Result<File>
+    {
+        self._open_file(to_cstr(path)?.as_ref(),
+            libc::O_CREAT|libc::O_RDWR,
+            mode)
+    }
+
     fn _open_file(&self, path: &CStr, flags: libc::c_int, mode: libc::mode_t)
         -> io::Result<File>
     {
