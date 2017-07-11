@@ -125,7 +125,7 @@ impl Dir {
     /// Make a symlink in this directory
     ///
     /// Note: the order of arguments differ from `symlinkat`
-    pub fn symlink<P: AsPath, R: AsPath>(&self, path: P, value: P)
+    pub fn symlink<P: AsPath, R: AsPath>(&self, path: P, value: R)
         -> io::Result<()>
     {
         self._symlink(to_cstr(path)?.as_ref(), to_cstr(value)?.as_ref())
