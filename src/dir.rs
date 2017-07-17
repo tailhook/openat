@@ -73,7 +73,7 @@ impl Dir {
         let res = unsafe {
             libc::readlinkat(self.as_raw_fd(),
                         path.as_ptr(),
-                        buf.as_mut_ptr() as *mut i8, buf.len())
+                        buf.as_mut_ptr(), buf.len())
         };
         if res < 0 {
             Err(io::Error::last_os_error())

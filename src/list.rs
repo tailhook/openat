@@ -11,8 +11,8 @@ use {Dir, Entry, SimpleType};
 
 
 // We have such weird constants because C types are ugly
-const DOT: [i8; 2] = [b'.' as i8, 0];
-const DOTDOT: [i8; 3] = [b'.' as i8, b'.' as i8, 0];
+const DOT: [u8; 2] = [b'.' as u8, 0];
+const DOTDOT: [u8; 3] = [b'.' as u8, b'.' as u8, 0];
 
 
 /// Iterator over directory entries
