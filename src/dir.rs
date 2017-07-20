@@ -89,12 +89,38 @@ impl Dir {
             libc::O_RDONLY, 0)
     }
 
+    /// Open file for writing, create if necessary, truncate on open
+    pub fn write_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
+        -> io::Result<File>
+    {
+        self._open_file(to_cstr(path)?.as_ref(),
+            libc::O_CREAT|libc::O_WRONLY|libc::O_TRUNC,
+            mode)
+    }
+
     /// Create file for writing (and truncate) in this directory
+    ///
+    /// Deprecated alias for `write_file`
+    #[deprecated(since="0.1.7", note="please use `write_file` instead")]
     pub fn create_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
     {
         self._open_file(to_cstr(path)?.as_ref(),
             libc::O_CREAT|libc::O_WRONLY|libc::O_TRUNC,
+            mode)
+    }
+
+    /// Create file if not exists, fail if exists
+    ///
+    /// This function checks existence and creates file atomically with
+    /// respect to other threads and processes.
+    ///
+    /// Technically it means passing `O_EXCL` flag to open.
+    pub fn new_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
+        -> io::Result<File>
+    {
+        self._open_file(to_cstr(path)?.as_ref(),
+            libc::O_CREAT|libc::O_EXCL|libc::O_WRONLY,
             mode)
     }
 
