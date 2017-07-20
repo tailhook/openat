@@ -98,6 +98,15 @@ impl Dir {
             mode)
     }
 
+    /// Open file for append, create if necessary
+    pub fn append_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
+        -> io::Result<File>
+    {
+        self._open_file(to_cstr(path)?.as_ref(),
+            libc::O_CREAT|libc::O_WRONLY|libc::O_APPEND,
+            mode)
+    }
+
     /// Create file for writing (and truncate) in this directory
     ///
     /// Deprecated alias for `write_file`
