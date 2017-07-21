@@ -207,13 +207,13 @@ impl Dir {
     pub fn remove_dir<P: AsPath>(&self, path: P)
         -> io::Result<()>
     {
-        self._unlink(to_cstr(path)?.as_ref(), 0)
+        self._unlink(to_cstr(path)?.as_ref(), ffi::AT_REMOVEDIR)
     }
     /// Remove a file in this directory
     pub fn remove_file<P: AsPath>(&self, path: P)
         -> io::Result<()>
     {
-        self._unlink(to_cstr(path)?.as_ref(), ffi::AT_REMOVEDIR)
+        self._unlink(to_cstr(path)?.as_ref(), 0)
     }
     fn _unlink(&self, path: &CStr, flags: libc::c_int) -> io::Result<()> {
         unsafe {
