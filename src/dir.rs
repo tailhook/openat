@@ -13,6 +13,7 @@ use list::{DirIter, open_dir};
 
 use {Dir, DirFd, AsPath};
 
+const RENAME_EXCHANGE: libc::c_int = 1 << 1;
 
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
@@ -201,6 +202,15 @@ impl Dir {
         rename(self, to_cstr(old)?.as_ref(), self, to_cstr(new)?.as_ref())
     }
 
+    /// Similar to `local_rename` but atomically swaps both paths
+    pub fn local_exchange<P: AsPath, R: AsPath>(&self, old: P, new: R)
+        -> io::Result<()>
+    {
+        rename_flags(self, to_cstr(old)?.as_ref(),
+            self, to_cstr(new)?.as_ref(),
+            RENAME_EXCHANGE)
+    }
+
     /// Remove a subdirectory in this directory
     ///
     /// Note only empty directory may be removed
@@ -273,6 +283,37 @@ fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr)
     unsafe {
         let res = libc::renameat(old_dir.as_raw_fd(), old.as_ptr(),
             new_dir.as_raw_fd(), new.as_ptr());
+        if res < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// Rename (move) a file between directories with flags
+///
+/// Files must be on a single filesystem anyway. This funtion does **not**
+/// fallback to copying if needed.
+pub fn rename_flags<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R,
+    flags: libc::c_int)
+    -> io::Result<()>
+    where P: AsPath, R: AsPath,
+{
+    _rename_flags(old_dir, to_cstr(old)?.as_ref(),
+        new_dir, to_cstr(new)?.as_ref(),
+        flags)
+}
+
+fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
+    flags: libc::c_int)
+    -> io::Result<()>
+{
+    unsafe {
+        let res = libc::syscall(
+            libc::SYS_renameat2,
+            old_dir.as_raw_fd(), old.as_ptr(),
+            new_dir.as_raw_fd(), new.as_ptr(), flags);
         if res < 0 {
             Err(io::Error::last_os_error())
         } else {
