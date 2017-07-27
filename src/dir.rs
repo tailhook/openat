@@ -15,6 +15,17 @@ use {Dir, DirFd, AsPath};
 
 const RENAME_EXCHANGE: libc::c_int = 1 << 1;
 
+#[cfg(not(target_env="musl"))]
+use libc::SYS_renameat2;
+
+#[cfg(all(target_env="musl", target_arch="x86"))]
+#[allow(non_upper_case_globals)]
+const SYS_renameat2: libc::c_long = 353;
+
+#[cfg(all(target_env="musl", target_arch="x86_64"))]
+#[allow(non_upper_case_globals)]
+const SYS_renameat2: libc::c_long = 316;
+
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
     /// workding directory (AT_FDCWD)
@@ -311,7 +322,7 @@ fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
 {
     unsafe {
         let res = libc::syscall(
-            libc::SYS_renameat2,
+            SYS_renameat2,
             old_dir.as_raw_fd(), old.as_ptr(),
             new_dir.as_raw_fd(), new.as_ptr(), flags);
         if res < 0 {

@@ -5,6 +5,11 @@ commands:
     container: ubuntu
     run: [cargo, build]
 
+  build-musl: !Command
+    description: Build the library with musl libc
+    container: ubuntu
+    run: [cargo, build, --target=x86_64-unknown-linux-musl]
+
   cargo: !Command
     description: Run arbitrary cargo command
     container: ubuntu
@@ -30,12 +35,18 @@ containers:
   ubuntu:
     setup:
     - !Ubuntu xenial
-    - !Install [ca-certificates, git, build-essential, vim]
+    - !UbuntuUniverse
+    - !Install [ca-certificates, git, build-essential, vim, musl-tools]
 
     - !TarInstall
       url: "https://static.rust-lang.org/dist/rust-1.17.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
+    - !TarInstall
+      url: "https://static.rust-lang.org/dist/rust-std-1.17.0-x86_64-unknown-linux-musl.tar.gz"
+      script: "./install.sh --prefix=/musl \
+               --components=rust-std-x86_64-unknown-linux-musl"
+    - !Sh 'ln -s /musl/lib/rustlib/x86_64-unknown-linux-musl /usr/lib/rustlib/x86_64-unknown-linux-musl'
     - &bulk !Tar
       url: "https://github.com/tailhook/bulk/releases/download/v0.4.9/bulk-v0.4.9.tar.gz"
       sha256: 23471a9986274bb4b7098c03e2eb7e1204171869b72c45385fcee1c64db2d111
@@ -43,6 +54,8 @@ containers:
 
     environ:
       HOME: /work/target
+      LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
+      PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       RUST_BACKTRACE: 1
 
   nightly:
