@@ -13,16 +13,17 @@ use list::{DirIter, open_dir};
 
 use {Dir, DirFd, AsPath};
 
+#[cfg(target_os="linux")]
 const RENAME_EXCHANGE: libc::c_int = 1 << 1;
 
-#[cfg(not(target_env="musl"))]
+#[cfg(all(target_os="linux", not(target_env="musl")))]
 use libc::SYS_renameat2;
 
-#[cfg(all(target_env="musl", target_arch="x86"))]
+#[cfg(all(target_os="linux", target_env="musl", target_arch="x86"))]
 #[allow(non_upper_case_globals)]
 const SYS_renameat2: libc::c_long = 353;
 
-#[cfg(all(target_env="musl", target_arch="x86_64"))]
+#[cfg(all(target_os="linux", target_env="musl", target_arch="x86_64"))]
 #[allow(non_upper_case_globals)]
 const SYS_renameat2: libc::c_long = 316;
 
@@ -160,7 +161,7 @@ impl Dir {
         unsafe {
             let res = libc::openat(self.as_raw_fd(), path.as_ptr(),
                             flags|libc::O_CLOEXEC|libc::O_NOFOLLOW,
-                            mode);
+                            mode as libc::c_uint);
             if res < 0 {
                 Err(io::Error::last_os_error())
             } else {
@@ -214,6 +215,9 @@ impl Dir {
     }
 
     /// Similar to `local_rename` but atomically swaps both paths
+    ///
+    /// Only supported on Linux.
+    #[cfg(target_os="linux")]
     pub fn local_exchange<P: AsPath, R: AsPath>(&self, old: P, new: R)
         -> io::Result<()>
     {
@@ -228,7 +232,7 @@ impl Dir {
     pub fn remove_dir<P: AsPath>(&self, path: P)
         -> io::Result<()>
     {
-        self._unlink(to_cstr(path)?.as_ref(), ffi::AT_REMOVEDIR)
+        self._unlink(to_cstr(path)?.as_ref(), libc::AT_REMOVEDIR)
     }
     /// Remove a file in this directory
     pub fn remove_file<P: AsPath>(&self, path: P)
@@ -260,7 +264,7 @@ impl Dir {
 
     /// Returns metadata of an entry in this directory
     pub fn metadata<P: AsPath>(&self, path: P) -> io::Result<Metadata> {
-        self._stat(to_cstr(path)?.as_ref(), ffi::AT_SYMLINK_NOFOLLOW)
+        self._stat(to_cstr(path)?.as_ref(), libc::AT_SYMLINK_NOFOLLOW)
     }
     fn _stat(&self, path: &CStr, flags: libc::c_int) -> io::Result<Metadata> {
         unsafe {
@@ -306,6 +310,9 @@ fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr)
 ///
 /// Files must be on a single filesystem anyway. This funtion does **not**
 /// fallback to copying if needed.
+///
+/// Only supported on Linux.
+#[cfg(target_os="linux")]
 pub fn rename_flags<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R,
     flags: libc::c_int)
     -> io::Result<()>
@@ -316,6 +323,7 @@ pub fn rename_flags<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R,
         flags)
 }
 
+#[cfg(target_os="linux")]
 fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
     flags: libc::c_int)
     -> io::Result<()>
