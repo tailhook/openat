@@ -4,8 +4,9 @@ description = """
     A wrapper around openat, symlinkat, and similar system calls
 """
 license = "MIT/Apache-2.0"
-readme = "README.rst"
+readme = "README.md"
 keywords = ["open", "openat", "filesystem", "fs"]
+categories = ["filesystem", "api-bindings"]
 homepage = "http://github.com/tailhook/openat"
 documentation = "http://docs.rs/openat"
 version = "0.1.11"

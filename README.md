@@ -1,9 +1,11 @@
-============
-Openat crate
+Openat Crate
 ============
 
-:Status: Beta
-:Documentation: http://docs.rs/openat/
+**Status: Beta**
+
+[Documentation](https://docs.rs/openat) |
+[Github](https://github.com/tailhook/openat) |
+[Crate](https://crates.io/crates/openat)
 
 
 The interface to ``openat``, ``symlinkat``, and other functions in ``*at``
