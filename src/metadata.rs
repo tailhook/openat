@@ -39,7 +39,7 @@ impl Metadata {
     }
     /// Returns permissions of the entry
     pub fn permissions(&self) -> Permissions {
-        Permissions::from_mode(self.stat.st_mode)
+        Permissions::from_mode(self.stat.st_mode as u32)
     }
     /// Returns file size
     pub fn len(&self) -> u64 {

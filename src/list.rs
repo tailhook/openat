@@ -34,16 +34,31 @@ impl Entry {
     }
 }
 
+#[cfg(target_os="linux")]
+unsafe fn errno_location() -> *mut libc::c_int {
+    libc::__errno_location()
+}
+
+#[cfg(any(target_os="openbsd", target_os="netbsd"))]
+unsafe fn errno_location() -> *mut libc::c_int {
+    libc::__errno()
+}
+
+#[cfg(not(any(target_os="linux", target_os="openbsd", target_os="netbsd")))]
+unsafe fn errno_location() -> *mut libc::c_int {
+    libc::__error()
+}
+
 impl DirIter {
 
     unsafe fn next_entry(&mut self) -> io::Result<Option<*const libc::dirent>>
     {
         // Reset errno to detect if error occurred
-        *libc::__errno_location() = 0;
+        *errno_location() = 0;
 
         let entry = ffi::readdir(self.dir);
         if entry == ptr::null() {
-            if *libc::__errno_location() == 0 {
+            if *errno_location() == 0 {
                 return Ok(None)
             } else {
                 return Err(io::Error::last_os_error());
