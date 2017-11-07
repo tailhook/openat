@@ -306,6 +306,35 @@ fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr)
     }
 }
 
+/// Create a hardlink to a file
+///
+/// Files must be on a single filesystem even if they are in different
+/// directories.
+///
+/// Note: by default ``linkat`` syscall doesn't resolve symbolic links, and
+/// it's also behavior of this function. It's recommended to resolve symlinks
+/// manually if needed.
+pub fn hardlink<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R)
+    -> io::Result<()>
+    where P: AsPath, R: AsPath,
+{
+    _hardlink(old_dir, to_cstr(old)?.as_ref(), new_dir, to_cstr(new)?.as_ref())
+}
+
+fn _hardlink(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr)
+    -> io::Result<()>
+{
+    unsafe {
+        let res = libc::linkat(old_dir.as_raw_fd(), old.as_ptr(),
+            new_dir.as_raw_fd(), new.as_ptr(), 0);
+        if res < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// Rename (move) a file between directories with flags
 ///
 /// Files must be on a single filesystem anyway. This funtion does **not**

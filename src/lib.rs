@@ -55,7 +55,7 @@ mod metadata;
 
 pub use list::DirIter;
 pub use name::AsPath;
-pub use dir::rename;
+pub use dir::{rename, hardlink};
 pub use filetype::SimpleType;
 pub use metadata::Metadata;
 
