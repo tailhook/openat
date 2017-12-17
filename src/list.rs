@@ -70,7 +70,7 @@ impl DirIter {
 
 pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<DirIter> {
     let dir_fd = unsafe {
-        libc::openat(dir.as_raw_fd(), path.as_ptr(), libc::O_DIRECTORY)
+        libc::openat(dir.as_raw_fd(), path.as_ptr(), ffi::O_DIRECTORY)
     };
     if dir_fd < 0 {
         Err(io::Error::last_os_error())

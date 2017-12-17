@@ -27,6 +27,10 @@ const SYS_renameat2: libc::c_long = 353;
 #[allow(non_upper_case_globals)]
 const SYS_renameat2: libc::c_long = 316;
 
+#[cfg(all(target_os="linux", target_env="musl", target_arch ="arm"))]
+#[allow(non_upper_case_globals)]
+const SYS_renameat2: libc::c_long = 382;
+
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
     /// workding directory (AT_FDCWD)
