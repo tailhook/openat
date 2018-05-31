@@ -67,13 +67,7 @@ use std::os::unix::io::RawFd;
 /// Construct it either with ``Dir::cwd()`` or ``Dir::open(path)``
 ///
 #[derive(Debug)]
-pub struct Dir(DirFd);
-
-#[derive(Debug)]
-enum DirFd {
-    Fd(RawFd),
-    Cwd,
-}
+pub struct Dir(RawFd);
 
 /// Entry returned by iterating over `DirIter` iterator
 #[derive(Debug)]
@@ -85,17 +79,17 @@ pub struct Entry {
 #[cfg(test)]
 mod test {
     use std::mem;
-    use super::{Dir, DirFd};
+    use super::Dir;
 
     fn assert_sync<T: Sync>(x: T) -> T { x }
     fn assert_send<T: Send>(x: T) -> T { x }
 
     #[test]
     fn test() {
-        let d = Dir(DirFd::Fd(3));
+        let d = Dir(3);
         let d = assert_sync(d);
         let d = assert_send(d);
-        // don't execute close for our fake DirFd
+        // don't execute close for our fake RawFd
         mem::forget(d);
     }
 }

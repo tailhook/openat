@@ -11,7 +11,7 @@ use ffi;
 use metadata::{self, Metadata};
 use list::{DirIter, open_dir};
 
-use {Dir, DirFd, AsPath};
+use {Dir, AsPath};
 
 #[cfg(target_os="linux")]
 const RENAME_EXCHANGE: libc::c_int = 1 << 1;
@@ -35,7 +35,7 @@ impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
     /// workding directory (AT_FDCWD)
     pub fn cwd() -> Dir {
-        Dir(DirFd::Cwd)
+        Dir(libc::AT_FDCWD)
     }
 
     /// Open a directory descriptor at specified path
@@ -51,7 +51,7 @@ impl Dir {
         if fd < 0 {
             Err(io::Error::last_os_error())
         } else {
-            Ok(Dir(DirFd::Fd(fd)))
+            Ok(Dir(fd))
         }
     }
 
@@ -76,7 +76,7 @@ impl Dir {
         if fd < 0 {
             Err(io::Error::last_os_error())
         } else {
-            Ok(Dir(DirFd::Fd(fd)))
+            Ok(Dir(fd))
         }
     }
 
@@ -260,9 +260,11 @@ impl Dir {
     /// This uses symlinks in `/proc/self`, they sometimes may not be
     /// available so use with care.
     pub fn recover_path(&self) -> io::Result<PathBuf> {
-        match self.0 {
-            DirFd::Fd(fd) => read_link(format!("/proc/self/fd/{}", fd)),
-            DirFd::Cwd => read_link(format!("/proc/self/cwd")),
+        let fd = self.0;
+        if fd != libc::AT_FDCWD {
+            read_link(format!("/proc/self/fd/{}", fd))
+        } else {
+            read_link("/proc/self/cwd")
         }
     }
 
@@ -375,23 +377,19 @@ fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
 }
 
 impl AsRawFd for Dir {
+    #[inline]
     fn as_raw_fd(&self) -> RawFd {
-        match self.0 {
-            DirFd::Fd(x) => x,
-            DirFd::Cwd => libc::AT_FDCWD,
-        }
+        self.0
     }
 }
 
-impl Drop for DirFd {
+impl Drop for Dir {
     fn drop(&mut self) {
-        match *self {
-            DirFd::Fd(x) => {
-                unsafe {
-                    libc::close(x);
-                }
+        let fd = self.0;
+        if fd != libc::AT_FDCWD {
+            unsafe {
+                libc::close(fd);
             }
-            DirFd::Cwd => {}
         }
     }
 }
