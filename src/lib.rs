@@ -47,7 +47,6 @@
 extern crate libc;
 
 mod dir;
-mod ffi;
 mod list;
 mod name;
 mod filetype;

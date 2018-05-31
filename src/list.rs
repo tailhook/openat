@@ -4,7 +4,6 @@ use std::ffi::{CStr, OsStr};
 use std::os::unix::io::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
 
-use ffi;
 use libc;
 
 use {Dir, Entry, SimpleType};
@@ -56,8 +55,8 @@ impl DirIter {
         // Reset errno to detect if error occurred
         *errno_location() = 0;
 
-        let entry = ffi::readdir(self.dir);
-        if entry == ptr::null() {
+        let entry = libc::readdir(self.dir);
+        if entry == ptr::null_mut() {
             if *errno_location() == 0 {
                 return Ok(None)
             } else {
@@ -70,12 +69,12 @@ impl DirIter {
 
 pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<DirIter> {
     let dir_fd = unsafe {
-        libc::openat(dir.as_raw_fd(), path.as_ptr(), ffi::O_DIRECTORY)
+        libc::openat(dir.as_raw_fd(), path.as_ptr(), libc::O_DIRECTORY)
     };
     if dir_fd < 0 {
         Err(io::Error::last_os_error())
     } else {
-        let dir = unsafe { ffi::fdopendir(dir_fd) };
+        let dir = unsafe { libc::fdopendir(dir_fd) };
         if dir == ptr::null_mut() {
             Err(io::Error::last_os_error())
         } else {
