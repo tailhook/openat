@@ -2,7 +2,7 @@ use std::io;
 use std::mem;
 use std::ffi::{OsString, CStr};
 use std::fs::{File, read_link};
-use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
+use std::os::unix::io::{AsRawFd, RawFd, FromRawFd, IntoRawFd};
 use std::os::unix::ffi::{OsStringExt};
 use std::path::{PathBuf};
 
@@ -364,6 +364,22 @@ impl AsRawFd for Dir {
     }
 }
 
+impl FromRawFd for Dir {
+    #[inline]
+    unsafe fn from_raw_fd(fd: RawFd) -> Dir {
+        Dir(fd)
+    }
+}
+
+impl IntoRawFd for Dir {
+    #[inline]
+    fn into_raw_fd(self) -> RawFd {
+        let result = self.0;
+        mem::forget(self);
+        return result;
+    }
+}
+
 impl Drop for Dir {
     fn drop(&mut self) {
         let fd = self.0;
@@ -387,6 +403,7 @@ fn to_cstr<P: AsPath>(path: P) -> io::Result<P::Buffer> {
 mod test {
     use std::io::{Read};
     use std::path::Path;
+    use std::os::unix::io::{FromRawFd, IntoRawFd};
     use {Dir};
 
     #[test]
@@ -402,6 +419,16 @@ mod test {
     #[test]
     fn test_read_file() {
         let dir = Dir::open("src").unwrap();
+        let mut buf = String::new();
+        dir.open_file("lib.rs").unwrap()
+            .read_to_string(&mut buf).unwrap();
+        assert!(buf.find("extern crate libc;").is_some());
+    }
+
+    #[test]
+    fn from_into() {
+        let dir = Dir::open("src").unwrap();
+        let dir = unsafe { Dir::from_raw_fd(dir.into_raw_fd()) };
         let mut buf = String::new();
         dir.open_file("lib.rs").unwrap()
             .read_to_string(&mut buf).unwrap();
