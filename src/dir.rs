@@ -7,29 +7,10 @@ use std::os::unix::ffi::{OsStringExt};
 use std::path::{PathBuf};
 
 use libc;
-use ffi;
 use metadata::{self, Metadata};
 use list::{DirIter, open_dir};
 
 use {Dir, AsPath};
-
-#[cfg(target_os="linux")]
-const RENAME_EXCHANGE: libc::c_int = 1 << 1;
-
-#[cfg(all(target_os="linux", not(target_env="musl")))]
-use libc::SYS_renameat2;
-
-#[cfg(all(target_os="linux", target_env="musl", target_arch="x86"))]
-#[allow(non_upper_case_globals)]
-const SYS_renameat2: libc::c_long = 353;
-
-#[cfg(all(target_os="linux", target_env="musl", target_arch="x86_64"))]
-#[allow(non_upper_case_globals)]
-const SYS_renameat2: libc::c_long = 316;
-
-#[cfg(all(target_os="linux", target_env="musl", target_arch ="arm"))]
-#[allow(non_upper_case_globals)]
-const SYS_renameat2: libc::c_long = 382;
 
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
@@ -46,7 +27,7 @@ impl Dir {
 
     fn _open(path: &CStr) -> io::Result<Dir> {
         let fd = unsafe {
-            libc::open(path.as_ptr(), ffi::O_PATH|libc::O_CLOEXEC)
+            libc::open(path.as_ptr(), libc::O_PATH|libc::O_CLOEXEC)
         };
         if fd < 0 {
             Err(io::Error::last_os_error())
@@ -71,7 +52,7 @@ impl Dir {
         let fd = unsafe {
             libc::openat(self.as_raw_fd(),
                         path.as_ptr(),
-                        ffi::O_PATH|libc::O_CLOEXEC|libc::O_NOFOLLOW)
+                        libc::O_PATH|libc::O_CLOEXEC|libc::O_NOFOLLOW)
         };
         if fd < 0 {
             Err(io::Error::last_os_error())
@@ -227,7 +208,7 @@ impl Dir {
     {
         rename_flags(self, to_cstr(old)?.as_ref(),
             self, to_cstr(new)?.as_ref(),
-            RENAME_EXCHANGE)
+            libc::RENAME_EXCHANGE)
     }
 
     /// Remove a subdirectory in this directory
@@ -365,7 +346,7 @@ fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
 {
     unsafe {
         let res = libc::syscall(
-            SYS_renameat2,
+            libc::SYS_renameat2,
             old_dir.as_raw_fd(), old.as_ptr(),
             new_dir.as_raw_fd(), new.as_ptr(), flags);
         if res < 0 {
