@@ -1,7 +1,6 @@
 use std::io;
 use std::ptr;
 use std::ffi::{CStr, OsStr};
-use std::os::unix::io::AsRawFd;
 use std::os::unix::ffi::OsStrExt;
 
 use libc;
@@ -69,7 +68,7 @@ impl DirIter {
 
 pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<DirIter> {
     let dir_fd = unsafe {
-        libc::openat(dir.as_raw_fd(), path.as_ptr(), libc::O_DIRECTORY)
+        libc::openat(dir.0, path.as_ptr(), libc::O_DIRECTORY)
     };
     if dir_fd < 0 {
         Err(io::Error::last_os_error())
