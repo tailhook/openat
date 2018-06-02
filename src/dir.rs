@@ -8,7 +8,7 @@ use std::path::{PathBuf};
 
 use libc;
 use metadata::{self, Metadata};
-use list::{DirIter, open_dir};
+use list::{DirIter, DOT, open_dir};
 
 use {Dir, AsPath};
 
@@ -50,7 +50,7 @@ impl Dir {
 
     fn _sub_dir(&self, path: &CStr) -> io::Result<Dir> {
         let fd = unsafe {
-            libc::openat(self.as_raw_fd(),
+            libc::openat(self.0,
                         path.as_ptr(),
                         libc::O_PATH|libc::O_CLOEXEC|libc::O_NOFOLLOW)
         };
@@ -69,7 +69,7 @@ impl Dir {
     fn _read_link(&self, path: &CStr) -> io::Result<PathBuf> {
         let mut buf = vec![0u8; 4096];
         let res = unsafe {
-            libc::readlinkat(self.as_raw_fd(),
+            libc::readlinkat(self.0,
                         path.as_ptr(),
                         buf.as_mut_ptr() as *mut libc::c_char, buf.len())
         };
@@ -144,7 +144,7 @@ impl Dir {
         -> io::Result<File>
     {
         unsafe {
-            let res = libc::openat(self.as_raw_fd(), path.as_ptr(),
+            let res = libc::openat(self.0, path.as_ptr(),
                             flags|libc::O_CLOEXEC|libc::O_NOFOLLOW,
                             mode as libc::c_uint);
             if res < 0 {
@@ -166,7 +166,7 @@ impl Dir {
     fn _symlink(&self, path: &CStr, link: &CStr) -> io::Result<()> {
         unsafe {
             let res = libc::symlinkat(link.as_ptr(),
-                self.as_raw_fd(), path.as_ptr());
+                self.0, path.as_ptr());
             if res < 0 {
                 Err(io::Error::last_os_error())
             } else {
@@ -183,7 +183,7 @@ impl Dir {
     }
     fn _create_dir(&self, path: &CStr, mode: libc::mode_t) -> io::Result<()> {
         unsafe {
-            let res = libc::mkdirat(self.as_raw_fd(), path.as_ptr(), mode);
+            let res = libc::mkdirat(self.0, path.as_ptr(), mode);
             if res < 0 {
                 Err(io::Error::last_os_error())
             } else {
@@ -227,7 +227,7 @@ impl Dir {
     }
     fn _unlink(&self, path: &CStr, flags: libc::c_int) -> io::Result<()> {
         unsafe {
-            let res = libc::unlinkat(self.as_raw_fd(), path.as_ptr(), flags);
+            let res = libc::unlinkat(self.0, path.as_ptr(), flags);
             if res < 0 {
                 Err(io::Error::last_os_error())
             } else {
@@ -256,7 +256,7 @@ impl Dir {
     fn _stat(&self, path: &CStr, flags: libc::c_int) -> io::Result<Metadata> {
         unsafe {
             let mut stat = mem::zeroed();
-            let res = libc::fstatat(self.as_raw_fd(), path.as_ptr(),
+            let res = libc::fstatat(self.0, path.as_ptr(),
                 &mut stat, flags);
             if res < 0 {
                 Err(io::Error::last_os_error())
@@ -283,8 +283,8 @@ fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr)
     -> io::Result<()>
 {
     unsafe {
-        let res = libc::renameat(old_dir.as_raw_fd(), old.as_ptr(),
-            new_dir.as_raw_fd(), new.as_ptr());
+        let res = libc::renameat(old_dir.0, old.as_ptr(),
+            new_dir.0, new.as_ptr());
         if res < 0 {
             Err(io::Error::last_os_error())
         } else {
@@ -312,8 +312,8 @@ fn _hardlink(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr)
     -> io::Result<()>
 {
     unsafe {
-        let res = libc::linkat(old_dir.as_raw_fd(), old.as_ptr(),
-            new_dir.as_raw_fd(), new.as_ptr(), 0);
+        let res = libc::linkat(old_dir.0, old.as_ptr(),
+            new_dir.0, new.as_ptr(), 0);
         if res < 0 {
             Err(io::Error::last_os_error())
         } else {
@@ -347,8 +347,8 @@ fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
     unsafe {
         let res = libc::syscall(
             libc::SYS_renameat2,
-            old_dir.as_raw_fd(), old.as_ptr(),
-            new_dir.as_raw_fd(), new.as_ptr(), flags);
+            old_dir.0, old.as_ptr(),
+            new_dir.0, new.as_ptr(), flags);
         if res < 0 {
             Err(io::Error::last_os_error())
         } else {
@@ -360,7 +360,15 @@ fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
 impl AsRawFd for Dir {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
-        self.0
+        let fd = match self.0 {
+            libc::AT_FDCWD => unsafe { libc::openat(self.0, DOT.as_ptr(), 0) },
+            _ => self.0,
+        };
+        if fd < 0 {
+            // TODO: libraries should not panic, consider a fallible method instead.
+            panic!("as_raw_fd: invalid file descriptor")
+        };
+        fd
     }
 }
 
@@ -374,7 +382,8 @@ impl FromRawFd for Dir {
 impl IntoRawFd for Dir {
     #[inline]
     fn into_raw_fd(self) -> RawFd {
-        let result = self.0;
+        // TODO: libraries should not panic, consider a fallible method instead.
+        let result = self.as_raw_fd();
         mem::forget(self);
         return result;
     }
@@ -401,9 +410,10 @@ fn to_cstr<P: AsPath>(path: P) -> io::Result<P::Buffer> {
 
 #[cfg(test)]
 mod test {
+    use std::fs::File;
     use std::io::{Read};
     use std::path::Path;
-    use std::os::unix::io::{FromRawFd, IntoRawFd};
+    use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
     use {Dir};
 
     #[test]
@@ -426,7 +436,7 @@ mod test {
     }
 
     #[test]
-    fn from_into() {
+    fn test_from_into() {
         let dir = Dir::open("src").unwrap();
         let dir = unsafe { Dir::from_raw_fd(dir.into_raw_fd()) };
         let mut buf = String::new();
@@ -450,5 +460,29 @@ mod test {
                     x.file_name() == Path::new("lib.rs").as_os_str()
                 })
                 .is_some());
+    }
+
+    #[test]
+    fn test_cwd_as_fd() {
+        let dir = Dir::cwd();
+        let cwd = unsafe { File::from_raw_fd(dir.as_raw_fd()) };
+        let meta = cwd.metadata().expect("failed to get metadata");
+        assert!(meta.is_dir());
+    }
+
+    #[test]
+    fn test_cwd_into_fd() {
+        let dir = Dir::cwd();
+        let cwd = unsafe { File::from_raw_fd(dir.into_raw_fd()) };
+        let meta = cwd.metadata().expect("failed to get metadata");
+        assert!(meta.is_dir());
+    }
+
+    #[test]
+    fn test_cwd_from_into() {
+        let cwd = Dir::cwd();
+        let dir = unsafe { Dir::from_raw_fd(cwd.into_raw_fd()) };
+        let meta = dir.metadata(".").expect("failed to get Dir metadata");
+        assert!(meta.is_dir());
     }
 }
