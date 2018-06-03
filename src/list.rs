@@ -9,8 +9,8 @@ use {Dir, Entry, SimpleType};
 
 
 // We have such weird constants because C types are ugly
-const DOT: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
-const DOTDOT: [libc::c_char; 3] = [b'.' as libc::c_char, b'.' as libc::c_char, 0];
+pub(crate) const DOT: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
+pub(crate) const DOTDOT: [libc::c_char; 3] = [b'.' as libc::c_char, b'.' as libc::c_char, 0];
 
 
 /// Iterator over directory entries

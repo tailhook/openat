@@ -8,7 +8,7 @@ use std::path::{PathBuf};
 
 use libc;
 use metadata::{self, Metadata};
-use list::{DirIter, open_dir};
+use list::{DirIter, DOT, open_dir};
 
 use {Dir, AsPath};
 
@@ -360,7 +360,15 @@ fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
 impl AsRawFd for Dir {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
-        self.0
+        let fd = match self.0 {
+            libc::AT_FDCWD => unsafe { libc::openat(self.0, DOT.as_ptr(), 0) },
+            _ => self.0,
+        };
+        if fd < 0 {
+            // TODO: libraries should not panic, consider a fallible method instead.
+            panic!("as_raw_fd: invalid file descriptor")
+        };
+        fd
     }
 }
 
@@ -374,7 +382,8 @@ impl FromRawFd for Dir {
 impl IntoRawFd for Dir {
     #[inline]
     fn into_raw_fd(self) -> RawFd {
-        let result = self.0;
+        // TODO: libraries should not panic, consider a fallible method instead.
+        let result = self.as_raw_fd();
         mem::forget(self);
         return result;
     }
@@ -401,9 +410,10 @@ fn to_cstr<P: AsPath>(path: P) -> io::Result<P::Buffer> {
 
 #[cfg(test)]
 mod test {
+    use std::fs::File;
     use std::io::{Read};
     use std::path::Path;
-    use std::os::unix::io::{FromRawFd, IntoRawFd};
+    use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
     use {Dir};
 
     #[test]
@@ -450,5 +460,29 @@ mod test {
                     x.file_name() == Path::new("lib.rs").as_os_str()
                 })
                 .is_some());
+    }
+
+    #[test]
+    fn test_cwd_as_fd() {
+        let dir = Dir::cwd();
+        let cwd = unsafe { File::from_raw_fd(dir.as_raw_fd()) };
+        let meta = cwd.metadata().expect("failed to get metadata");
+        assert!(meta.is_dir());
+    }
+
+    #[test]
+    fn test_cwd_into_fd() {
+        let dir = Dir::cwd();
+        let cwd = unsafe { File::from_raw_fd(dir.into_raw_fd()) };
+        let meta = cwd.metadata().expect("failed to get metadata");
+        assert!(meta.is_dir());
+    }
+
+    #[test]
+    fn test_cwd_from_into() {
+        let cwd = Dir::cwd();
+        let dir = unsafe { Dir::from_raw_fd(cwd.into_raw_fd()) };
+        let meta = dir.metadata(".").expect("failed to get Dir metadata");
+        assert!(meta.is_dir());
     }
 }
