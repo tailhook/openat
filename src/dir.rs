@@ -14,7 +14,14 @@ use {Dir, AsPath};
 
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
-    /// workding directory (AT_FDCWD)
+    /// working directory (AT_FDCWD)
+    #[deprecated(since="0.1.15", note="\
+        Use `Dir::open(\".\")` instead. \
+        Dir::cwd() doesn't open actual file descriptor and uses magic value \
+        instead which resolves to current dir on any syscall invocation. \
+        This is usually counter-intuitive and yields a broken \
+        file descriptor when using `Dir::as_raw_fd`. \
+        Will be removed in version v0.2 of the library.")]
     pub fn cwd() -> Dir {
         Dir(libc::AT_FDCWD)
     }

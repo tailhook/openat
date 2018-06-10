@@ -4,18 +4,15 @@
 //! can create it with:
 //!
 //! * `Dir::open("/some/path")` -- open this directory as a file descriptor
-//! * `Dir::cwd()` -- current working directory
+//! * `Dir::from_raw_fd(fd)` -- uses a file descriptor provided elsewhere
 //!
 //! *Note after opening file descriptors refer to same directory regardless of
 //! where it's moved or mounted (with `pivot_root` or `mount --move`). It may
 //! also be unmounted or be out of chroot and you will still be able to
 //! access files relative to it.*
 //!
-//! *Note that `Dir::cwd()` always refers to the current working directory of
-//! an application (and doesn't keep file descriptor too) and is sensitive
-//! to `chdir`. But otherwise behaves the same (i.e. directory may be
-//! moved and process is still in it). Anyway it's not more useful than
-//! just using relative paths and traditional filesystem utilities.*
+//! *Note2: The constructor `Dir::cwd()` is deprecated, and it's recommended
+//! to use `Dir::open(".")` instead.*
 //!
 //! Most other operations are done on `Dir` object and are executed relative
 //! to it:
