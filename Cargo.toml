@@ -9,7 +9,7 @@ keywords = ["open", "openat", "filesystem", "fs"]
 categories = ["filesystem", "api-bindings"]
 homepage = "http://github.com/tailhook/openat"
 documentation = "http://docs.rs/openat"
-version = "0.1.14"
+version = "0.1.15"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
