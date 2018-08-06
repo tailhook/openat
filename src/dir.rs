@@ -124,6 +124,103 @@ impl Dir {
             mode)
     }
 
+    /// Create a tmpfile in this directory which isn't linked to any filename
+    ///
+    /// This works by passing `O_TMPFILE` into the openat call. The flag is
+    /// supported only on linux. So this function always returns error on
+    /// such systems.
+    ///
+    /// Note: It may be unclear why creating unnamed file requires a dir. There
+    /// are two reasons:
+    ///
+    /// 1. It's created (and occupies space) on a real filesystem, so the
+    ///    directory is a way to find out which filesystem to attach file to
+    /// 2. This method is mostly needed to initialize the file then link it
+    ///    using ``link_file_at`` to the real directory entry. When linking
+    ///    it must be linked into the same filesystem. But because for most
+    ///    programs finding out filesystem layout is an overkill the rule of
+    ///    thumb is to create a file in the the target directory.
+    ///
+    /// Currently, we recommend to fallback on any error if this operation
+    /// can't be accomplished rather than relying on specific error codes,
+    /// because semantics of errors are very ugly.
+    #[cfg(target_os="linux")]
+    pub fn new_unnamed_file(&self, mode: libc::mode_t)
+        -> io::Result<File>
+    {
+        self._open_file(unsafe { CStr::from_bytes_with_nul_unchecked(b".\0") },
+            libc::O_TMPFILE|libc::O_WRONLY,
+            mode)
+    }
+
+    /// Create a tmpfile in this directory which isn't linked to any filename
+    ///
+    /// This works by passing `O_TMPFILE` into the openat call. The flag is
+    /// supported only on linux. So this function always returns error on
+    /// such systems.
+    ///
+    /// Note: It may be unclear why creating unnamed file requires a dir. There
+    /// are two reasons:
+    ///
+    /// 1. It's created (and occupies space) on a real filesystem, so the
+    ///    directory is a way to find out which filesystem to attach file to
+    /// 2. This method is mostly needed to initialize the file then link it
+    ///    using ``link_file_at`` to the real directory entry. When linking
+    ///    it must be linked into the same filesystem. But because for most
+    ///    programs finding out filesystem layout is an overkill the rule of
+    ///    thumb is to create a file in the the target directory.
+    ///
+    /// Currently, we recommend to fallback on any error if this operation
+    /// can't be accomplished rather than relying on specific error codes,
+    /// because semantics of errors are very ugly.
+    #[cfg(not(target_os="linux"))]
+    pub fn new_unnamed_file<P: AsPath>(&self, _mode: libc::mode_t)
+        -> io::Result<File>
+    {
+        Err(io::Error::new(io::ErrorKind::Other,
+            "creating unnamed tmpfiles is only supported on linux"))
+    }
+
+    /// Link open file to a specified path
+    ///
+    /// This is used with ``new_unnamed_file()`` to create and initialize the
+    /// file before linking it into a filesystem. This requires `/proc` to be
+    /// mounted and works **only on linux**.
+    ///
+    /// On systems other than linux this always returns error. It's expected
+    /// that in most cases this methos is not called if ``new_unnamed_file``
+    /// fails. But in obscure scenarios where `/proc` is not mounted this
+    /// method may fail even on linux. So your code should be able to fallback
+    /// to a named file if this method fails too.
+    #[cfg(target_os="linux")]
+    pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, file: &F, path: P)
+        -> io::Result<()>
+    {
+        let fd_path = format!("/proc/self/fd/{}", file.as_raw_fd());
+        _hardlink(&Dir(libc::AT_FDCWD), to_cstr(fd_path)?.as_ref(),
+            &self, to_cstr(path)?.as_ref(),
+            libc::AT_SYMLINK_FOLLOW)
+    }
+
+    /// Link open file to a specified path
+    ///
+    /// This is used with ``new_unnamed_file()`` to create and initialize the
+    /// file before linking it into a filesystem. This requires `/proc` to be
+    /// mounted and works **only on linux**.
+    ///
+    /// On systems other than linux this always returns error. It's expected
+    /// that in most cases this methos is not called if ``new_unnamed_file``
+    /// fails. But in obscure scenarios where `/proc` is not mounted this
+    /// method may fail even on linux. So your code should be able to fallback
+    /// to a named file if this method fails too.
+    #[cfg(not(target_os="linux"))]
+    pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, file: F, path: P)
+        -> io::Result<()>
+    {
+        Err(io::Error::new(io::ErrorKind::Other,
+            "linking unnamed fd to directories is only supported on linux"))
+    }
+
     /// Create file if not exists, fail if exists
     ///
     /// This function checks existence and creates file atomically with
@@ -312,15 +409,18 @@ pub fn hardlink<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R)
     -> io::Result<()>
     where P: AsPath, R: AsPath,
 {
-    _hardlink(old_dir, to_cstr(old)?.as_ref(), new_dir, to_cstr(new)?.as_ref())
+    _hardlink(old_dir, to_cstr(old)?.as_ref(),
+              new_dir, to_cstr(new)?.as_ref(),
+              0)
 }
 
-fn _hardlink(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr)
+fn _hardlink(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
+             flags: libc::c_int)
     -> io::Result<()>
 {
     unsafe {
         let res = libc::linkat(old_dir.0, old.as_ptr(),
-            new_dir.0, new.as_ptr(), 0);
+            new_dir.0, new.as_ptr(), flags);
         if res < 0 {
             Err(io::Error::last_os_error())
         } else {

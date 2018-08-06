@@ -17,3 +17,4 @@ libc = "0.2.34"
 
 [dev-dependencies]
 argparse = "0.2.1"
+tempfile = "3.0.3"
