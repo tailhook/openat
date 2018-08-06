@@ -12,6 +12,9 @@ jobs:
   include:
   - os: linux
     rust: stable
+    script:
+    - umask 022
+    - cargo test
   - os: linux
     rust: beta
   - os: linux
