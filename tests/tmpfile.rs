@@ -7,10 +7,11 @@ use std::process::Command;
 
 #[test]
 #[cfg(target_os="linux")]
-fn unnamed_tmp_file_link() -> Result<(), io::Error> {
+fn unnamed_tmp_file_link() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let dir = Dir::open(tmp.path()).expect("open");
-    let mut f = dir.new_unnamed_file(0o777).expect("new file");
+    let mut f = dir.new_unnamed_file(0o666).expect("new file");
+    println!("Filemeta {:?}", f.metadata().expect("meta"));
     f.write(b"hello\n").expect("write");
     dir.link_file_at(&f, "hello.txt").expect("linkat");
     Command::new("ls").arg("-la").arg(tmp.path()).status().expect("ls");
@@ -18,5 +19,4 @@ fn unnamed_tmp_file_link() -> Result<(), io::Error> {
     let mut buf = String::with_capacity(10);
     f.read_to_string(&mut buf).expect("read data");
     assert_eq!(buf, "hello\n");
-    Ok(())
 }
