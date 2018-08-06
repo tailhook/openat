@@ -7,14 +7,14 @@ use openat::Dir;
 #[test]
 #[cfg(target_os="linux")]
 fn unnamed_tmp_file_link() -> Result<(), io::Error> {
-    let tmp = tempfile::tempdir()?;
-    let dir = Dir::open(tmp.path())?;
-    let mut f = dir.new_unnamed_file(0o777)?;
-    f.write(b"hello\n")?;
-    dir.link_file_at(&f, "hello.txt")?;
-    let mut f = dir.open_file("hello.txt")?;
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let dir = Dir::open(tmp.path()).expect("open");
+    let mut f = dir.new_unnamed_file(0o777).expect("new file");
+    f.write(b"hello\n").expect("write");
+    dir.link_file_at(&f, "hello.txt").expect("linkat");
+    let mut f = dir.open_file("hello.txt").expect("read");
     let mut buf = String::with_capacity(10);
-    f.read_to_string(&mut buf)?;
+    f.read_to_string(&mut buf).expect("read data");
     assert_eq!(buf, "hello\n");
     Ok(())
 }
