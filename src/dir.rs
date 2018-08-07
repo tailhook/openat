@@ -130,6 +130,9 @@ impl Dir {
     /// supported only on linux. So this function always returns error on
     /// such systems.
     ///
+    /// **WARNING!** On glibc < 2.22 file permissions of the newly created file
+    /// may be arbitrary. Consider chowning after creating a file.
+    ///
     /// Note: It may be unclear why creating unnamed file requires a dir. There
     /// are two reasons:
     ///
