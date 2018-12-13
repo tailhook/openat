@@ -217,7 +217,7 @@ impl Dir {
     /// method may fail even on linux. So your code should be able to fallback
     /// to a named file if this method fails too.
     #[cfg(not(target_os="linux"))]
-    pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, file: F, path: P)
+    pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, _file: F, _path: P)
         -> io::Result<()>
     {
         Err(io::Error::new(io::ErrorKind::Other,
