@@ -37,12 +37,12 @@ unsafe fn errno_location() -> *mut libc::c_int {
     libc::__errno_location()
 }
 
-#[cfg(any(target_os="openbsd", target_os="netbsd"))]
+#[cfg(any(target_os="openbsd", target_os="netbsd", target_os="android"))]
 unsafe fn errno_location() -> *mut libc::c_int {
     libc::__errno()
 }
 
-#[cfg(not(any(target_os="linux", target_os="openbsd", target_os="netbsd")))]
+#[cfg(not(any(target_os="linux", target_os="openbsd", target_os="netbsd", target_os="android")))]
 unsafe fn errno_location() -> *mut libc::c_int {
     libc::__error()
 }
