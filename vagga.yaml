@@ -71,3 +71,21 @@ containers:
     environ:
       HOME: /work/target
       RUST_BACKTRACE: 1
+
+  aarch64:
+    setup:
+    - !Ubuntu xenial
+    - !Install [ca-certificates, git, build-essential]
+
+    - !TarInstall
+      url: "https://static.rust-lang.org/dist/rust-1.31.0-x86_64-unknown-linux-gnu.tar.gz"
+      script: "./install.sh --prefix=/usr \
+                --components=rustc,cargo"
+    - !TarInstall
+      url: "https://static.rust-lang.org/dist/rust-std-1.31.0-aarch64-linux-android.tar.gz"
+      script: "./install.sh --prefix=/usr \
+                --components=rust-std-aarch64-linux-android"
+
+    environ:
+      HOME: /work/target
+      RUST_BACKTRACE: 1
