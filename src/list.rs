@@ -22,11 +22,11 @@ pub struct DirIter {
 }
 
 impl Entry {
-    /// Returns the file name of the this entry
+    /// Returns the file name of this entry
     pub fn file_name(&self) -> &OsStr {
         OsStr::from_bytes(self.name.to_bytes())
     }
-    /// Returns simplified type of entry
+    /// Returns the simplified type of this entry
     pub fn simple_type(&self) -> Option<SimpleType> {
         self.file_type
     }
