@@ -32,7 +32,7 @@ impl Entry {
     }
 }
 
-#[cfg(target_os="linux")]
+#[cfg(any(target_os="linux", target_os="fuchsia"))]
 unsafe fn errno_location() -> *mut libc::c_int {
     libc::__errno_location()
 }
@@ -42,7 +42,7 @@ unsafe fn errno_location() -> *mut libc::c_int {
     libc::__errno()
 }
 
-#[cfg(not(any(target_os="linux", target_os="openbsd", target_os="netbsd", target_os="android")))]
+#[cfg(not(any(target_os="linux", target_os="openbsd", target_os="netbsd", target_os="android", target_os="fuchsia")))]
 unsafe fn errno_location() -> *mut libc::c_int {
     libc::__error()
 }
