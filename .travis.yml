@@ -16,6 +16,9 @@ jobs:
     rust: beta
   - os: linux
     rust: nightly
+  - os: macos
+    osx_image: xcode9.3
+    rust: stable
 
   # deploy
   - stage: publish

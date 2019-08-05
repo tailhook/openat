@@ -12,6 +12,11 @@ use list::{DirIter, open_dir};
 
 use {Dir, AsPath};
 
+#[cfg(target_os="macos")]
+const BASE_OPEN_FLAGS: libc::c_int = libc::O_CLOEXEC;
+#[cfg(not(target_os="macos"))]
+const BASE_OPEN_FLAGS: libc::c_int = libc::O_PATH|libc::O_CLOEXEC;
+
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
     /// working directory (AT_FDCWD)
@@ -34,7 +39,7 @@ impl Dir {
 
     fn _open(path: &CStr) -> io::Result<Dir> {
         let fd = unsafe {
-            libc::open(path.as_ptr(), libc::O_PATH|libc::O_CLOEXEC)
+            libc::open(path.as_ptr(), BASE_OPEN_FLAGS)
         };
         if fd < 0 {
             Err(io::Error::last_os_error())
@@ -59,7 +64,7 @@ impl Dir {
         let fd = unsafe {
             libc::openat(self.0,
                         path.as_ptr(),
-                        libc::O_PATH|libc::O_CLOEXEC|libc::O_NOFOLLOW)
+                        BASE_OPEN_FLAGS|libc::O_NOFOLLOW)
         };
         if fd < 0 {
             Err(io::Error::last_os_error())
