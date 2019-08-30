@@ -57,7 +57,9 @@ impl Dir {
 
     /// List this dir
     pub fn list_self(&self) -> io::Result<DirIter> {
-        open_dirfd(self.0)
+        unsafe {
+            open_dirfd(libc::dup(self.0))
+        }
     }
 
     /// Open subdirectory
