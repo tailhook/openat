@@ -378,6 +378,18 @@ impl Dir {
         }
     }
 
+    /// Returns the metadata of the directory itself.
+    pub fn self_metadata(&self) -> io::Result<Metadata> {
+        unsafe {
+            let mut stat = mem::zeroed();
+            let res = libc::fstat(self.0, &mut stat);
+            if res < 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(metadata::new(stat))
+            }
+        }
+    }
 }
 
 /// Rename (move) a file between directories
