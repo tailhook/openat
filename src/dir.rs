@@ -8,7 +8,7 @@ use std::path::{PathBuf};
 
 use libc;
 use metadata::{self, Metadata};
-use list::{DirIter, open_dir};
+use list::{DirIter, open_dir, open_dirfd};
 
 use {Dir, AsPath};
 
@@ -50,9 +50,14 @@ impl Dir {
 
     /// List subdirectory of this dir
     ///
-    /// You can list directory itself if `"."` is specified as path.
+    /// You can list directory itself with `list_self`.
     pub fn list_dir<P: AsPath>(&self, path: P) -> io::Result<DirIter> {
         open_dir(self, to_cstr(path)?.as_ref())
+    }
+
+    /// List this dir
+    pub fn list_self(&self) -> io::Result<DirIter> {
+        open_dirfd(self.0)
     }
 
     /// Open subdirectory

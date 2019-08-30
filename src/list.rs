@@ -66,6 +66,15 @@ impl DirIter {
     }
 }
 
+pub fn open_dirfd(fd: libc::c_int) -> io::Result<DirIter> {
+    let dir = unsafe { libc::fdopendir(fd) };
+    if dir == std::ptr::null_mut() {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(DirIter { dir: dir })
+    }
+}
+
 pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<DirIter> {
     let dir_fd = unsafe {
         libc::openat(dir.0, path.as_ptr(), libc::O_DIRECTORY|libc::O_CLOEXEC)
@@ -73,12 +82,7 @@ pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<DirIter> {
     if dir_fd < 0 {
         Err(io::Error::last_os_error())
     } else {
-        let dir = unsafe { libc::fdopendir(dir_fd) };
-        if dir == ptr::null_mut() {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(DirIter { dir: dir })
-        }
+        open_dirfd(dir_fd)
     }
 }
 
