@@ -12,12 +12,12 @@ use list::{DirIter, open_dir, open_dirfd};
 
 use {Dir, AsPath};
 
-#[cfg(target_os="macos")]
-const BASE_OPEN_FLAGS: libc::c_int = libc::O_CLOEXEC;
+#[cfg(target_os="linux")]
+const BASE_OPEN_FLAGS: libc::c_int = libc::O_PATH|libc::O_CLOEXEC;
 #[cfg(target_os="freebsd")]
 const BASE_OPEN_FLAGS: libc::c_int = libc::O_DIRECTORY|libc::O_CLOEXEC;
-#[cfg(not(any(target_os="macos", target_os="freebsd")))]
-const BASE_OPEN_FLAGS: libc::c_int = libc::O_PATH|libc::O_CLOEXEC;
+#[cfg(not(any(target_os="linux", target_os="freebsd")))]
+const BASE_OPEN_FLAGS: libc::c_int = libc::O_CLOEXEC;
 
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
