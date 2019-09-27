@@ -14,7 +14,9 @@ use {Dir, AsPath};
 
 #[cfg(target_os="macos")]
 const BASE_OPEN_FLAGS: libc::c_int = libc::O_CLOEXEC;
-#[cfg(not(target_os="macos"))]
+#[cfg(target_os="freebsd")]
+const BASE_OPEN_FLAGS: libc::c_int = libc::O_DIRECTORY|libc::O_CLOEXEC;
+#[cfg(not(any(target_os="macos", target_os="freebsd")))]
 const BASE_OPEN_FLAGS: libc::c_int = libc::O_PATH|libc::O_CLOEXEC;
 
 impl Dir {
@@ -546,6 +548,7 @@ mod test {
     }
 
     #[test]
+    #[cfg_attr(target_os="freebsd", should_panic(expected="Not a directory"))]
     fn test_open_file() {
         Dir::open("src/lib.rs").unwrap();
     }
