@@ -49,7 +49,7 @@ unsafe fn errno_location() -> *mut libc::c_int {
 
 impl DirIter {
 
-    unsafe fn next_entry(&mut self) -> io::Result<Option<*const libc::dirent>>
+    unsafe fn next_entry(&mut self) -> io::Result<Option<&libc::dirent>>
     {
         // Reset errno to detect if error occurred
         *errno_location() = 0;
@@ -62,7 +62,7 @@ impl DirIter {
                 return Err(io::Error::last_os_error());
             }
         }
-        return Ok(Some(entry));
+        return Ok(Some(&*entry));
     }
 }
 
@@ -94,13 +94,13 @@ impl Iterator for DirIter {
                 match self.next_entry() {
                     Err(e) => return Some(Err(e)),
                     Ok(None) => return None,
-                    Ok(Some(e)) if (*e).d_name[..2] == DOT => continue,
-                    Ok(Some(e)) if (*e).d_name[..3] == DOTDOT => continue,
+                    Ok(Some(e)) if e.d_name[..2] == DOT => continue,
+                    Ok(Some(e)) if e.d_name[..3] == DOTDOT => continue,
                     Ok(Some(e)) => {
                         return Some(Ok(Entry {
-                            name: CStr::from_ptr((&(*e).d_name).as_ptr())
+                            name: CStr::from_ptr((e.d_name).as_ptr())
                                 .to_owned(),
-                            file_type: match (*e).d_type {
+                            file_type: match e.d_type {
                                 0 => None,
                                 libc::DT_REG => Some(SimpleType::File),
                                 libc::DT_DIR => Some(SimpleType::Dir),
