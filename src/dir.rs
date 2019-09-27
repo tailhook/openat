@@ -263,6 +263,11 @@ impl Dir {
         -> io::Result<File>
     {
         unsafe {
+            // Note: In below call to `openat`, *mode* must be cast to
+            // `unsigned` because the optional `mode` argument to `openat` is
+            // variadic in the signature. Since integers are not implicitly
+            // promoted as they are in C this would break on Freebsd where
+            // *mode_t* is an alias for `uint16_t`.
             let res = libc::openat(self.0, path.as_ptr(),
                             flags|libc::O_CLOEXEC|libc::O_NOFOLLOW,
                             mode as libc::c_uint);
