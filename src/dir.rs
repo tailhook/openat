@@ -16,6 +16,7 @@ use {Dir, AsPath};
 const BASE_OPEN_FLAGS: libc::c_int = libc::O_CLOEXEC;
 #[cfg(not(target_os="macos"))]
 const BASE_OPEN_FLAGS: libc::c_int = libc::O_PATH|libc::O_CLOEXEC;
+const FULL_OPEN_FLAGS: libc::c_int = libc::O_CLOEXEC;
 
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
@@ -34,12 +35,18 @@ impl Dir {
     /// Open a directory descriptor at specified path
     // TODO(tailhook) maybe accept only absolute paths?
     pub fn open<P: AsPath>(path: P) -> io::Result<Dir> {
-        Dir::_open(to_cstr(path)?.as_ref())
+        Dir::_open(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS)
     }
 
-    fn _open(path: &CStr) -> io::Result<Dir> {
+    /// Open a directory descriptor at specified path with full
+    /// file operations.
+    pub fn open_full<P: AsPath>(path: P) -> io::Result<Dir> {
+        Dir::_open(to_cstr(path)?.as_ref(), FULL_OPEN_FLAGS)
+    }
+
+    fn _open(path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
         let fd = unsafe {
-            libc::open(path.as_ptr(), BASE_OPEN_FLAGS)
+            libc::open(path.as_ptr(), flags)
         };
         if fd < 0 {
             Err(io::Error::last_os_error())
@@ -397,6 +404,16 @@ impl Dir {
             }
         }
     }
+
+    /// Sync directory metadata.
+    pub fn sync_all(&self) -> io::Result<()> {
+        let res = unsafe { libc::fsync(self.0) };
+        if res == -1 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
 }
 
 /// Rename (move) a file between directories
@@ -584,5 +601,22 @@ mod test {
                     x.file_name() == Path::new("lib.rs").as_os_str()
                 })
                 .is_some());
+    }
+
+    #[test]
+    #[cfg(target_os="linux")]
+    #[should_panic(expected="Bad file descriptor")]
+    fn test_sync_base_fail() {
+        /* A lightweight fd obtained with `O_PATH` lacks file operations. */
+        let dir = Dir::open("src").unwrap();
+        dir.sync_all().unwrap();
+    }
+
+    #[test]
+    #[cfg(target_os="linux")]
+    fn test_sync_full_ok() {
+        /* A regular fd can be fsync(2)ed. */
+        let dir = Dir::open_full("src").unwrap();
+        assert!(dir.sync_all().is_ok());
     }
 }
