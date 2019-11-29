@@ -65,6 +65,11 @@ impl Dir {
     }
 
     /// Open subdirectory
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn sub_dir<P: AsPath>(&self, path: P) -> io::Result<Dir> {
         self._sub_dir(to_cstr(path)?.as_ref())
     }
@@ -103,12 +108,22 @@ impl Dir {
     }
 
     /// Open file for reading in this directory
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn open_file<P: AsPath>(&self, path: P) -> io::Result<File> {
         self._open_file(to_cstr(path)?.as_ref(),
             libc::O_RDONLY, 0)
     }
 
     /// Open file for writing, create if necessary, truncate on open
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn write_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
     {
@@ -118,6 +133,11 @@ impl Dir {
     }
 
     /// Open file for append, create if necessary
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn append_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
     {
@@ -129,6 +149,11 @@ impl Dir {
     /// Create file for writing (and truncate) in this directory
     ///
     /// Deprecated alias for `write_file`
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     #[deprecated(since="0.1.7", note="please use `write_file` instead")]
     pub fn create_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
@@ -161,6 +186,11 @@ impl Dir {
     /// Currently, we recommend to fallback on any error if this operation
     /// can't be accomplished rather than relying on specific error codes,
     /// because semantics of errors are very ugly.
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     #[cfg(target_os="linux")]
     pub fn new_unnamed_file(&self, mode: libc::mode_t)
         -> io::Result<File>
@@ -244,6 +274,11 @@ impl Dir {
     /// respect to other threads and processes.
     ///
     /// Technically it means passing `O_EXCL` flag to open.
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn new_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
     {
@@ -253,6 +288,11 @@ impl Dir {
     }
 
     /// Open file for reading and writing without truncation, create if needed
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn update_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
     {
@@ -376,6 +416,11 @@ impl Dir {
     }
 
     /// Returns metadata of an entry in this directory
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn metadata<P: AsPath>(&self, path: P) -> io::Result<Metadata> {
         self._stat(to_cstr(path)?.as_ref(), libc::AT_SYMLINK_NOFOLLOW)
     }
