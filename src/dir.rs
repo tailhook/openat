@@ -190,11 +190,6 @@ impl Dir {
     /// Currently, we recommend to fallback on any error if this operation
     /// can't be accomplished rather than relying on specific error codes,
     /// because semantics of errors are very ugly.
-    ///
-    /// Note that this method does not resolve symlinks by default, so you may have to call
-    /// [`read_link`] to resolve the real path first.
-    ///
-    /// [`read_link`]: #method.read_link
     #[cfg(target_os="linux")]
     pub fn new_unnamed_file(&self, mode: libc::mode_t)
         -> io::Result<File>
