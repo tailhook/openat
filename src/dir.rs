@@ -411,8 +411,9 @@ impl Dir {
 
     /// Returns metadata of an entry in this directory
     ///
-    /// Note that this method does not resolve symlinks by default, so you may have to call
-    /// [`read_link`] to resolve the real path first.
+    /// If the destination path is a symlink, this will return the metadata of the symlink itself.
+    /// If you would like to follow the symlink and return the metadata of the target, you will
+    /// have to call [`read_link`] to resolve the real path first.
     ///
     /// [`read_link`]: #method.read_link
     pub fn metadata<P: AsPath>(&self, path: P) -> io::Result<Metadata> {
