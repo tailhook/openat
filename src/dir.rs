@@ -273,11 +273,6 @@ impl Dir {
     /// respect to other threads and processes.
     ///
     /// Technically it means passing `O_EXCL` flag to open.
-    ///
-    /// Note that this method does not resolve symlinks by default, so you may have to call
-    /// [`read_link`] to resolve the real path first.
-    ///
-    /// [`read_link`]: #method.read_link
     pub fn new_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
     {
