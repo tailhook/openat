@@ -65,6 +65,11 @@ impl Dir {
     }
 
     /// Open subdirectory
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn sub_dir<P: AsPath>(&self, path: P) -> io::Result<Dir> {
         self._sub_dir(to_cstr(path)?.as_ref())
     }
@@ -103,12 +108,24 @@ impl Dir {
     }
 
     /// Open file for reading in this directory
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn open_file<P: AsPath>(&self, path: P) -> io::Result<File> {
         self._open_file(to_cstr(path)?.as_ref(),
             libc::O_RDONLY, 0)
     }
 
     /// Open file for writing, create if necessary, truncate on open
+    ///
+    /// If there exists a symlink at the destination path, this method will fail. In that case, you
+    /// will need to remove the symlink before calling this method. If you are on Linux, you can
+    /// alternatively create an unnamed file with [`new_unnamed_file`] and then rename it,
+    /// clobbering the symlink at the destination.
+    ///
+    /// [`new_unnamed_file`]: #method.new_unnamed_file
     pub fn write_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
     {
@@ -118,6 +135,11 @@ impl Dir {
     }
 
     /// Open file for append, create if necessary
+    ///
+    /// If there exists a symlink at the destination path, this method will fail. In that case, you
+    /// will need to call [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn append_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
     {
@@ -129,6 +151,13 @@ impl Dir {
     /// Create file for writing (and truncate) in this directory
     ///
     /// Deprecated alias for `write_file`
+    ///
+    /// If there exists a symlink at the destination path, this method will fail. In that case, you
+    /// will need to remove the symlink before calling this method. If you are on Linux, you can
+    /// alternatively create an unnamed file with [`new_unnamed_file`] and then rename it,
+    /// clobbering the symlink at the destination.
+    ///
+    /// [`new_unnamed_file`]: #method.new_unnamed_file
     #[deprecated(since="0.1.7", note="please use `write_file` instead")]
     pub fn create_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
@@ -253,6 +282,11 @@ impl Dir {
     }
 
     /// Open file for reading and writing without truncation, create if needed
+    ///
+    /// If there exists a symlink at the destination path, this method will fail. In that case, you
+    /// will need to call [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn update_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
         -> io::Result<File>
     {
@@ -376,6 +410,12 @@ impl Dir {
     }
 
     /// Returns metadata of an entry in this directory
+    ///
+    /// If the destination path is a symlink, this will return the metadata of the symlink itself.
+    /// If you would like to follow the symlink and return the metadata of the target, you will
+    /// have to call [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
     pub fn metadata<P: AsPath>(&self, path: P) -> io::Result<Metadata> {
         self._stat(to_cstr(path)?.as_ref(), libc::AT_SYMLINK_NOFOLLOW)
     }
