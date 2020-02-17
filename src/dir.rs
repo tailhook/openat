@@ -546,6 +546,8 @@ impl AsRawFd for Dir {
 }
 
 impl FromRawFd for Dir {
+    /// The user must guarantee that the passed in `RawFd` is in fact
+    /// a directory file descriptor.
     #[inline]
     unsafe fn from_raw_fd(fd: RawFd) -> Dir {
         Dir(fd)
