@@ -444,6 +444,25 @@ impl Dir {
             }
         }
     }
+
+    /// Constructs a new `Dir` from a given raw file descriptor,
+    /// ensuring it is a directory file descriptor first.
+    ///
+    /// This function **consumes ownership** of the specified file
+    /// descriptor. The returned `Dir` will take responsibility for
+    /// closing it when it goes out of scope.
+    pub unsafe fn from_raw_fd_checked(fd: RawFd) -> io::Result<Self> {
+        let mut stat = mem::zeroed();
+        let res = libc::fstat(fd, &mut stat);
+        if res < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            match stat.st_mode & libc::S_IFMT {
+                libc::S_IFDIR => Ok(Dir(fd)),
+                _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR))
+            }
+        }
+    }
 }
 
 /// Rename (move) a file between directories
@@ -634,5 +653,16 @@ mod test {
                     x.file_name() == Path::new("lib.rs").as_os_str()
                 })
                 .is_some());
+    }
+
+    #[test]
+    fn test_from_raw_fd_checked() {
+        let fd = Dir::open(".").unwrap().into_raw_fd();
+        let dir = unsafe { Dir::from_raw_fd_checked(fd) }.unwrap();
+        let filefd = dir.open_file("src/lib.rs").unwrap().into_raw_fd();
+        match unsafe { Dir::from_raw_fd_checked(filefd) } {
+            Ok(_) => assert!(false, "from_raw_fd_checked succeeded on a non-directory fd!"),
+            Err(e) => assert_eq!(e.raw_os_error().unwrap(), libc::ENOTDIR)
+        }
     }
 }
