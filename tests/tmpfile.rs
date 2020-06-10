@@ -14,7 +14,7 @@ fn unnamed_tmp_file_link() -> Result<(), io::Error> {
     f.write(b"hello\n")?;
     // In glibc <= 2.22 permissions aren't set when using O_TMPFILE
     // This includes ubuntu trusty on travis CI
-    f.set_permissions(PermissionsExt::from_mode(0o644));
+    f.set_permissions(PermissionsExt::from_mode(0o644))?;
     dir.link_file_at(&f, "hello.txt")?;
     let mut f = dir.open_file("hello.txt")?;
     let mut buf = String::with_capacity(10);
