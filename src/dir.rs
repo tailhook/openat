@@ -7,10 +7,10 @@ use std::os::unix::ffi::{OsStringExt};
 use std::path::{PathBuf};
 
 use libc;
-use metadata::{self, Metadata};
-use list::{DirIter, open_dir, open_dirfd};
+use crate::metadata::{self, Metadata};
+use crate::list::{DirIter, open_dir, open_dirfd};
 
-use {Dir, AsPath};
+use crate::{Dir, AsPath};
 
 #[cfg(target_os="linux")]
 const BASE_OPEN_FLAGS: libc::c_int = libc::O_PATH|libc::O_CLOEXEC;
@@ -616,7 +616,7 @@ mod test {
     use std::io::{Read};
     use std::path::Path;
     use std::os::unix::io::{FromRawFd, IntoRawFd};
-    use {Dir};
+    use crate::{Dir};
 
     #[test]
     fn test_open_ok() {

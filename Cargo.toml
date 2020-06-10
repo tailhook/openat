@@ -12,6 +12,7 @@ homepage = "https://github.com/tailhook/openat"
 documentation = "http://docs.rs/openat"
 version = "0.1.18"
 authors = ["paul@colomiets.name"]
+edition = "2018"
 
 [dependencies]
 libc = "0.2.34"

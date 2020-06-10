@@ -2,7 +2,7 @@ use std::ffi::{OsStr, CStr, CString};
 use std::path::{Path, PathBuf};
 use std::os::unix::ffi::OsStrExt;
 
-use {Entry};
+use crate::{Entry};
 
 
 /// The purpose of this is similar to `AsRef<Path>` but it's optimized for

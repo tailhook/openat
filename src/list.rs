@@ -5,7 +5,7 @@ use std::os::unix::ffi::OsStrExt;
 
 use libc;
 
-use {Dir, Entry, SimpleType};
+use crate::{Dir, Entry, SimpleType};
 
 
 // We have such weird constants because C types are ugly

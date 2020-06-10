@@ -3,7 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use libc;
 
-use SimpleType;
+use crate::SimpleType;
 
 
 /// A file metadata
@@ -57,7 +57,7 @@ mod test {
 
     #[test]
     fn dir() {
-        let d = ::Dir::open(".").unwrap();
+        let d = crate::Dir::open(".").unwrap();
         let m = d.metadata("src").unwrap();
         assert_eq!(m.simple_type(), SimpleType::Dir);
         assert!(m.is_dir());
@@ -66,7 +66,7 @@ mod test {
 
     #[test]
     fn file() {
-        let d = ::Dir::open("src").unwrap();
+        let d = crate::Dir::open("src").unwrap();
         let m = d.metadata("lib.rs").unwrap();
         assert_eq!(m.simple_type(), SimpleType::File);
         assert!(!m.is_dir());
