@@ -463,6 +463,16 @@ impl Dir {
             }
         }
     }
+
+    /// Creates a new independently owned handle to the underlying directory.
+    pub fn try_clone(&self) -> io::Result<Self> {
+        let fd = unsafe { libc::dup(self.0) };
+        if fd == -1 {
+            Err(io::Error::last_os_error())
+        } else {
+            unsafe { Self::from_raw_fd_checked(fd) }
+        }
+    }
 }
 
 /// Rename (move) a file between directories
@@ -664,5 +674,13 @@ mod test {
             Ok(_) => assert!(false, "from_raw_fd_checked succeeded on a non-directory fd!"),
             Err(e) => assert_eq!(e.raw_os_error().unwrap(), libc::ENOTDIR)
         }
+    }
+
+    #[test]
+    fn test_try_clone() {
+        let d = Dir::open(".").unwrap();
+        let d2 = d.try_clone().unwrap();
+        drop(d);
+        let _file = d2.open_file("src/lib.rs").unwrap();
     }
 }
