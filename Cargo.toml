@@ -10,7 +10,7 @@ categories = ["filesystem", "api-bindings"]
 repository = "https://github.com/tailhook/openat"
 homepage = "https://github.com/tailhook/openat"
 documentation = "http://docs.rs/openat"
-version = "0.1.19"
+version = "0.1.20"
 authors = ["paul@colomiets.name"]
 edition = "2018"
 
