@@ -366,9 +366,14 @@ impl Dir {
     pub fn local_exchange<P: AsPath, R: AsPath>(&self, old: P, new: R)
         -> io::Result<()>
     {
+        // Workaround https://github.com/tailhook/openat/issues/35
+        // AKA https://github.com/rust-lang/libc/pull/2116
+        // Unfortunately since we made this libc::c_int in our
+        // public API, we can't easily change it right now.
+        let flags = libc::RENAME_EXCHANGE as libc::c_int;
         rename_flags(self, to_cstr(old)?.as_ref(),
             self, to_cstr(new)?.as_ref(),
-            libc::RENAME_EXCHANGE)
+            flags)
     }
 
     /// Remove a subdirectory in this directory
