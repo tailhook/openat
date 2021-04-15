@@ -21,6 +21,9 @@ pub struct DirIter {
     dir: *mut libc::DIR,
 }
 
+/// Position in a DirIter as obtained by 'DirIter::current_position()'
+///
+/// The position is only valid for the DirIter it was retrieved from.
 pub struct DirPosition {
     pos: libc::c_long,
 }
