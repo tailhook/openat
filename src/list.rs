@@ -21,6 +21,10 @@ pub struct DirIter {
     dir: *mut libc::DIR,
 }
 
+pub struct DirPosition {
+    pos: libc::c_long,
+}
+
 impl Entry {
     /// Returns the file name of this entry
     pub fn file_name(&self) -> &OsStr {
@@ -66,20 +70,20 @@ impl DirIter {
     }
 
     /// Returns the current directory iterator position. The result should be handled as opaque value
-    pub fn current_position(&self) -> io::Result<libc::c_long> {
+    pub fn current_position(&self) -> io::Result<DirPosition> {
         let pos = unsafe { libc::telldir(self.dir) };
 
         if pos == -1 {
             Err(io::Error::last_os_error())
         } else {
-            Ok(pos)
+            Ok(DirPosition { pos })
         }
     }
 
     // note the C-API does not report errors for seekdir/rewinddir, thus we don't do as well.
     /// Sets the current directory iterator position to some location queried by 'current_position()'
-    pub fn seek(&self, position: libc::c_long) {
-        unsafe { libc::seekdir(self.dir, position) };
+    pub fn seek(&self, position: DirPosition) {
+        unsafe { libc::seekdir(self.dir, position.pos) };
     }
 
     /// Resets the current directory iterator position to the beginning
