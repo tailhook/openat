@@ -18,11 +18,11 @@ pub struct Metadata {
 impl Metadata {
     /// Returns simplified type of the directory entry
     pub fn simple_type(&self) -> SimpleType {
-        let typ = self.stat.st_mode & libc::S_IFMT;
-        match typ {
+        match self.file_type().unwrap_or(0) {
             libc::S_IFREG => SimpleType::File,
             libc::S_IFDIR => SimpleType::Dir,
             libc::S_IFLNK => SimpleType::Symlink,
+            0 => SimpleType::Unknown,
             _ => SimpleType::Other,
         }
     }
