@@ -18,7 +18,7 @@ pub struct Metadata {
 impl Metadata {
     /// Returns simplified type of the directory entry
     pub fn simple_type(&self) -> SimpleType {
-        match self.file_type().unwrap_or(0) {
+        match self.file_type().unwrap_or(0) as libc::mode_t {
             libc::S_IFREG => SimpleType::File,
             libc::S_IFDIR => SimpleType::Dir,
             libc::S_IFLNK => SimpleType::Symlink,
@@ -48,7 +48,7 @@ impl Metadata {
     }
     /// Return low level file type, if available
     pub fn file_type(&self) -> Option<u32> {
-        Some(self.stat.st_mode & libc::S_IFMT)
+        Some(self.stat.st_mode as u32 & libc::S_IFMT as u32)
     }
     /// Return device node, if available
     pub fn ino(&self) -> Option<libc::ino_t> {
@@ -56,23 +56,23 @@ impl Metadata {
     }
     /// Return device node major of the file, if available
     pub fn dev_major(&self) -> Option<u32> {
-        Some(unsafe { libc::major(self.stat.st_dev) })
+        Some(major(self.stat.st_dev))
     }
     /// Return device node minor of the file, if available
     pub fn dev_minor(&self) -> Option<u32> {
-        Some(unsafe { libc::minor(self.stat.st_dev) })
+        Some(minor(self.stat.st_dev))
     }
     /// Return device node major of an device descriptor, if available
     pub fn rdev_major(&self) -> Option<u32> {
-        match self.file_type()? {
-            libc::S_IFBLK | libc::S_IFCHR => Some(unsafe { libc::major(self.stat.st_rdev) }),
+        match self.file_type()? as libc::mode_t {
+            libc::S_IFBLK | libc::S_IFCHR => Some(major(self.stat.st_rdev)),
             _ => None,
         }
     }
     /// Return device node minor of an device descriptor, if available
     pub fn rdev_minor(&self) -> Option<u32> {
-        match self.file_type()? {
-            libc::S_IFBLK | libc::S_IFCHR => Some(unsafe { libc::minor(self.stat.st_rdev) }),
+        match self.file_type()? as libc::mode_t {
+            libc::S_IFBLK | libc::S_IFCHR => Some(minor(self.stat.st_rdev)),
             _ => None,
         }
     }
@@ -102,7 +102,7 @@ impl Metadata {
     }
     /// Returns mode bits, if available
     pub fn file_mode(&self) -> Option<u32> {
-        Some(self.stat.st_mode & 0o7777)
+        Some(self.stat.st_mode as u32 & 0o7777)
     }
     /// Returns last access time, if available
     pub fn atime(&self) -> Option<SystemTime> {
@@ -128,6 +128,28 @@ pub fn new(stat: libc::stat) -> Metadata {
 
 fn unix_systemtime(sec: libc::time_t, nsec: i64) -> SystemTime {
     UNIX_EPOCH + Duration::from_secs(sec as u64) + Duration::from_nanos(nsec as u64)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn major(dev: libc::dev_t) -> u32 {
+    unsafe { libc::major(dev) }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn minor(dev: libc::dev_t) -> u32 {
+    unsafe { libc::minor(dev) }
+}
+
+// major/minor are not in rust's darwin libc (why)
+// see https://github.com/apple/darwin-xnu/blob/main/bsd/sys/types.h
+#[cfg(target_os = "macos")]
+pub fn major(dev: libc::dev_t) -> u32 {
+    (dev as u32 >> 24) & 0xff
+}
+
+#[cfg(target_os = "macos")]
+pub fn minor(dev: libc::dev_t) -> u32 {
+    dev as u32 & 0xffffff
 }
 
 #[cfg(test)]
