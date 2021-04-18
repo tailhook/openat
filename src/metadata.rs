@@ -55,24 +55,24 @@ impl Metadata {
         Some(self.stat.st_ino)
     }
     /// Return device node major of the file, if available
-    pub fn dev_major(&self) -> Option<u64> {
-        Some(unsafe { libc::major(self.stat.st_dev) } as u64)
+    pub fn dev_major(&self) -> Option<u32> {
+        Some(unsafe { libc::major(self.stat.st_dev) })
     }
     /// Return device node minor of the file, if available
-    pub fn dev_minor(&self) -> Option<u64> {
-        Some(unsafe { libc::minor(self.stat.st_dev) } as u64)
+    pub fn dev_minor(&self) -> Option<u32> {
+        Some(unsafe { libc::minor(self.stat.st_dev) })
     }
     /// Return device node major of an device descriptor, if available
-    pub fn rdev_major(&self) -> Option<u64> {
+    pub fn rdev_major(&self) -> Option<u32> {
         match self.file_type()? {
-            libc::S_IFBLK | libc::S_IFCHR => Some(unsafe { libc::major(self.stat.st_rdev) } as u64),
+            libc::S_IFBLK | libc::S_IFCHR => Some(unsafe { libc::major(self.stat.st_rdev) }),
             _ => None,
         }
     }
     /// Return device node minor of an device descriptor, if available
-    pub fn rdev_minor(&self) -> Option<u64> {
+    pub fn rdev_minor(&self) -> Option<u32> {
         match self.file_type()? {
-            libc::S_IFBLK | libc::S_IFCHR => Some(unsafe { libc::minor(self.stat.st_rdev) } as u64),
+            libc::S_IFBLK | libc::S_IFCHR => Some(unsafe { libc::minor(self.stat.st_rdev) }),
             _ => None,
         }
     }
