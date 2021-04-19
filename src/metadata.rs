@@ -51,8 +51,8 @@ impl Metadata {
         Some(self.stat.st_mode as u32 & libc::S_IFMT as u32)
     }
     /// Return device node, if available
-    pub fn ino(&self) -> Option<libc::ino_t> {
-        Some(self.stat.st_ino)
+    pub fn ino(&self) -> Option<u64> {
+        Some(self.stat.st_ino as u64)
     }
     /// Return device node major of the file, if available
     pub fn dev_major(&self) -> Option<u32> {
