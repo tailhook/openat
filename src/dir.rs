@@ -7,8 +7,8 @@ use std::os::unix::ffi::{OsStringExt};
 use std::path::{PathBuf};
 
 use libc;
+use crate::list::{open_dirfd, DirIter};
 use crate::metadata::{self, Metadata};
-use crate::list::{DirIter, open_dir, open_dirfd};
 
 use crate::{Dir, AsPath};
 
@@ -53,15 +53,20 @@ impl Dir {
     /// List subdirectory of this dir
     ///
     /// You can list directory itself with `list_self`.
+    // TODO(cehteh): may be deprecated in favor of list()
     pub fn list_dir<P: AsPath>(&self, path: P) -> io::Result<DirIter> {
-        open_dir(self, to_cstr(path)?.as_ref())
+        self.sub_dir(path)?.list()
     }
 
     /// List this dir
+    // TODO(cehteh): may be deprecated in favor of list()
     pub fn list_self(&self) -> io::Result<DirIter> {
-        unsafe {
-            open_dirfd(libc::dup(self.0))
-        }
+        self.try_clone()?.list()
+    }
+
+    /// Create a DirIter from a Dir
+    pub fn list(self) -> io::Result<DirIter> {
+        open_dirfd(self.0)
     }
 
     /// Open subdirectory
