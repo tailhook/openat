@@ -37,6 +37,10 @@ impl Entry {
     pub fn simple_type(&self) -> Option<SimpleType> {
         self.file_type
     }
+    /// Returns the inode number of this entry
+    pub fn inode(&self) -> libc::ino_t {
+        self.ino
+    }
 }
 
 #[cfg(any(target_os="linux", target_os="fuchsia"))]
@@ -136,6 +140,7 @@ impl Iterator for DirIter {
                                 libc::DT_LNK => Some(SimpleType::Symlink),
                                 _ => Some(SimpleType::Other),
                             },
+                            ino: e.d_ino,
                         }));
                     }
                 }
