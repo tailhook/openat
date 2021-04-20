@@ -12,11 +12,12 @@ use crate::metadata::{self, Metadata};
 
 use crate::{Dir, AsPath};
 
-#[cfg(target_os="linux")]
-const BASE_OPEN_FLAGS: libc::c_int = libc::O_PATH|libc::O_CLOEXEC;
-#[cfg(target_os="freebsd")]
-const BASE_OPEN_FLAGS: libc::c_int = libc::O_DIRECTORY|libc::O_CLOEXEC;
-#[cfg(not(any(target_os="linux", target_os="freebsd")))]
+// NOTE(cehteh): removed O_PATH since it is linux only and highly unportable (semantics can't be emulated)
+//               but see open_path() below.
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+const BASE_OPEN_FLAGS: libc::c_int = libc::O_DIRECTORY | libc::O_CLOEXEC;
+// NOTE(cehteh): O_DIRECTORY is defined in posix, what is the reason for not using it?
+#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
 const BASE_OPEN_FLAGS: libc::c_int = libc::O_CLOEXEC;
 
 impl Dir {
@@ -36,13 +37,18 @@ impl Dir {
     /// Open a directory descriptor at specified path
     // TODO(tailhook) maybe accept only absolute paths?
     pub fn open<P: AsPath>(path: P) -> io::Result<Dir> {
-        Dir::_open(to_cstr(path)?.as_ref())
+        Dir::_open(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS)
     }
 
-    fn _open(path: &CStr) -> io::Result<Dir> {
-        let fd = unsafe {
-            libc::open(path.as_ptr(), BASE_OPEN_FLAGS)
-        };
+    /// Open a directory descriptor at specified path with O_PATH (linux only)
+    /// A descriptor obtained with this flag is restricted to do only certain operations (see: man 2 open)
+    #[cfg(any(target_os = "linux"))]
+    pub fn open_path<P: AsPath>(path: P) -> io::Result<Dir> {
+        Dir::_open(to_cstr(path)?.as_ref(), libc::O_PATH | BASE_OPEN_FLAGS)
+    }
+
+    fn _open(path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
+        let fd = unsafe { libc::open(path.as_ptr(), flags) };
         if fd < 0 {
             Err(io::Error::last_os_error())
         } else {
@@ -66,7 +72,9 @@ impl Dir {
 
     /// Create a DirIter from a Dir
     pub fn list(self) -> io::Result<DirIter> {
-        open_dirfd(self.0)
+        let fd = self.0;
+        std::mem::forget(self);
+        open_dirfd(fd)
     }
 
     /// Open subdirectory
@@ -76,15 +84,23 @@ impl Dir {
     ///
     /// [`read_link`]: #method.read_link
     pub fn sub_dir<P: AsPath>(&self, path: P) -> io::Result<Dir> {
-        self._sub_dir(to_cstr(path)?.as_ref())
+        self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW)
     }
 
-    fn _sub_dir(&self, path: &CStr) -> io::Result<Dir> {
-        let fd = unsafe {
-            libc::openat(self.0,
-                        path.as_ptr(),
-                        BASE_OPEN_FLAGS|libc::O_NOFOLLOW)
-        };
+    /// Open subdirectory with O_PATH (linux only)
+    ///
+    /// Note that this method does not resolve symlinks by default, so you may have to call
+    /// A descriptor obtained with this flag is restricted to do only certain operations (see: man 2 open)
+    /// [`read_link`] to resolve the real path first.
+    ///
+    /// [`read_link`]: #method.read_link
+    #[cfg(any(target_os = "linux"))]
+    pub fn sub_dir_path<P: AsPath>(&self, path: P) -> io::Result<Dir> {
+        self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW | libc::O_PATH)
+    }
+
+    fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
+        let fd = unsafe { libc::openat(self.0, path.as_ptr(), flags) };
         if fd < 0 {
             Err(io::Error::last_os_error())
         } else {
@@ -634,7 +650,8 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(target_os="freebsd", should_panic(expected="Not a directory"))]
+    #[cfg_attr(any(target_os = "freebsd", target_os = "linux"), should_panic(expected = "Not a directory"))]
+    // NOTE(cehteh): should fail in all cases! see O_DIRECTORY at the top
     fn test_open_file() {
         Dir::open("src/lib.rs").unwrap();
     }
@@ -667,12 +684,49 @@ mod test {
     #[test]
     fn test_list() {
         let dir = Dir::open("src").unwrap();
+        let me = dir.list().unwrap();
+        assert!(me
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .iter()
+            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+            .is_some());
+    }
+
+    #[test]
+    fn test_list_self() {
+        let dir = Dir::open("src").unwrap();
+        let me = dir.list_self().unwrap();
+        assert!(me
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .iter()
+            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+            .is_some());
+    }
+
+    #[test]
+    fn test_list_dot() {
+        let dir = Dir::open("src").unwrap();
         let me = dir.list_dir(".").unwrap();
-        assert!(me.collect::<Result<Vec<_>, _>>().unwrap()
-                .iter().find(|x| {
-                    x.file_name() == Path::new("lib.rs").as_os_str()
-                })
-                .is_some());
+        assert!(me
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .iter()
+            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+            .is_some());
+    }
+
+    #[test]
+    fn test_list_dir() {
+        let dir = Dir::open(".").unwrap();
+        let me = dir.list_dir("src").unwrap();
+        assert!(me
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .iter()
+            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+            .is_some());
     }
 
     #[test]
