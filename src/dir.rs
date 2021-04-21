@@ -17,6 +17,7 @@ use crate::{Dir, AsPath};
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 const BASE_OPEN_FLAGS: libc::c_int = libc::O_DIRECTORY | libc::O_CLOEXEC;
 // NOTE(cehteh): O_DIRECTORY is defined in posix, what is the reason for not using it?
+// TODO(cehteh): on systems that do not support O_DIRECTORY a runtime stat-check is required
 #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
 const BASE_OPEN_FLAGS: libc::c_int = libc::O_CLOEXEC;
 
@@ -72,10 +73,11 @@ impl Dir {
     /// List this dir
     // TODO(cehteh): may be deprecated in favor of list()
     pub fn list_self(&self) -> io::Result<DirIter> {
-        self.try_clone()?.list()
+        self.clone_upgrade()?.list()
     }
 
     /// Create a DirIter from a Dir
+    /// Dir must not be a 'Lite' handle
     pub fn list(self) -> io::Result<DirIter> {
         let fd = self.0;
         std::mem::forget(self);
@@ -477,11 +479,21 @@ impl Dir {
     }
 
     /// Creates a new independently owned handle to the underlying directory.
+    /// The new handle has the same (Normal/Lite) semantics as the original handle.
     pub fn try_clone(&self) -> io::Result<Self> {
         Ok(Dir(clone_dirfd(self.0)?))
     }
 
-    //TODO(cehteh): clone/conversion full<->lite
+    /// Creates a new 'Normal' independently owned handle to the underlying directory.
+    pub fn clone_upgrade(&self) -> io::Result<Self> {
+        Ok(Dir(clone_dirfd_upgrade(self.0)?))
+    }
+
+    /// Creates a new 'Lite' independently owned handle to the underlying directory.
+    pub fn clone_downgrade(&self) -> io::Result<Self> {
+        Ok(Dir(clone_dirfd_downgrade(self.0)?))
+    }
+
 }
 
 const CURRENT_DIRECTORY: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
@@ -489,6 +501,41 @@ const CURRENT_DIRECTORY: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
 fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
     unsafe {
         match fd_type(fd)? {
+            FdType::NormalDir => libc_ok(libc::openat(
+                fd,
+                &CURRENT_DIRECTORY as *const libc::c_char,
+                BASE_OPEN_FLAGS,
+            )),
+            #[cfg(target_os = "linux")]
+            FdType::LiteDir => libc_ok(libc::dup(fd)),
+            _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
+        }
+    }
+}
+
+fn clone_dirfd_upgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
+    unsafe {
+        match fd_type(fd)? {
+            FdType::NormalDir | FdType::LiteDir => libc_ok(libc::openat(
+                fd,
+                &CURRENT_DIRECTORY as *const libc::c_char,
+                BASE_OPEN_FLAGS,
+            )),
+            _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
+        }
+    }
+}
+
+fn clone_dirfd_downgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
+    unsafe {
+        match fd_type(fd)? {
+            #[cfg(target_os = "linux")]
+            FdType::NormalDir => libc_ok(libc::openat(
+                fd,
+                &CURRENT_DIRECTORY as *const libc::c_char,
+                libc::O_PATH | BASE_OPEN_FLAGS,
+            )),
+            #[cfg(not(target_os = "linux"))]
             FdType::NormalDir => libc_ok(libc::openat(
                 fd,
                 &CURRENT_DIRECTORY as *const libc::c_char,
