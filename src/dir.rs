@@ -57,12 +57,8 @@ impl Dir {
     }
 
     fn _open(path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
-        let fd = unsafe { libc::open(path.as_ptr(), flags) };
-        if fd < 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(Dir(fd))
-        }
+        let fd = unsafe { libc_ok(libc::open(path.as_ptr(), flags))? };
+        Ok(Dir(fd))
     }
 
     /// List subdirectory of this dir
@@ -119,12 +115,7 @@ impl Dir {
     }
 
     fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
-        let fd = unsafe { libc::openat(self.0, path.as_ptr(), flags) };
-        if fd < 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(Dir(fd))
-        }
+        Ok(Dir(unsafe { libc_ok(libc::openat(self.0, path.as_ptr(), flags))? }))
     }
 
     /// Read link in this directory
@@ -344,14 +335,12 @@ impl Dir {
             // variadic in the signature. Since integers are not implicitly
             // promoted as they are in C this would break on Freebsd where
             // *mode_t* is an alias for `uint16_t`.
-            let res = libc::openat(self.0, path.as_ptr(),
-                            flags|libc::O_CLOEXEC|libc::O_NOFOLLOW,
-                            mode as libc::c_uint);
-            if res < 0 {
-                Err(io::Error::last_os_error())
-            } else {
-                Ok(File::from_raw_fd(res))
-            }
+            let res = libc_ok(
+                libc::openat(self.0, path.as_ptr(),
+                             flags|libc::O_CLOEXEC|libc::O_NOFOLLOW,
+                             mode as libc::c_uint)
+            )?;
+            Ok(File::from_raw_fd(res))
         }
     }
 
@@ -383,13 +372,9 @@ impl Dir {
     }
     fn _create_dir(&self, path: &CStr, mode: libc::mode_t) -> io::Result<()> {
         unsafe {
-            let res = libc::mkdirat(self.0, path.as_ptr(), mode);
-            if res < 0 {
-                Err(io::Error::last_os_error())
-            } else {
-                Ok(())
-            }
+            libc_ok(libc::mkdirat(self.0, path.as_ptr(), mode))?;
         }
+        Ok(())
     }
 
     /// Rename a file in this directory to another name (keeping same dir)
@@ -432,19 +417,16 @@ impl Dir {
     }
     fn _unlink(&self, path: &CStr, flags: libc::c_int) -> io::Result<()> {
         unsafe {
-            let res = libc::unlinkat(self.0, path.as_ptr(), flags);
-            if res < 0 {
-                Err(io::Error::last_os_error())
-            } else {
-                Ok(())
-            }
+            libc_ok(libc::unlinkat(self.0, path.as_ptr(), flags))?;
         }
+        Ok(())
     }
 
     /// Get the path of this directory (if possible)
     ///
     /// This uses symlinks in `/proc/self`, they sometimes may not be
     /// available so use with care.
+    // FIXME(cehteh): proc stuff isn't portable
     pub fn recover_path(&self) -> io::Result<PathBuf> {
         let fd = self.0;
         if fd != libc::AT_FDCWD {
@@ -466,27 +448,18 @@ impl Dir {
     }
     fn _stat(&self, path: &CStr, flags: libc::c_int) -> io::Result<Metadata> {
         unsafe {
-            let mut stat = mem::zeroed();
-            let res = libc::fstatat(self.0, path.as_ptr(),
-                &mut stat, flags);
-            if res < 0 {
-                Err(io::Error::last_os_error())
-            } else {
-                Ok(metadata::new(stat))
-            }
+            let mut stat = mem::zeroed(); // TODO(cehteh): uninit
+            libc_ok(libc::fstatat(self.0, path.as_ptr(), &mut stat, flags))?;
+            Ok(metadata::new(stat))
         }
     }
 
     /// Returns the metadata of the directory itself.
     pub fn self_metadata(&self) -> io::Result<Metadata> {
         unsafe {
-            let mut stat = mem::zeroed();
-            let res = libc::fstat(self.0, &mut stat);
-            if res < 0 {
-                Err(io::Error::last_os_error())
-            } else {
-                Ok(metadata::new(stat))
-            }
+            let mut stat = mem::zeroed(); // TODO(cehteh): uninit
+            libc_ok(libc::fstat(self.0, &mut stat))?;
+            Ok(metadata::new(stat))
         }
     }
 
@@ -593,18 +566,11 @@ pub fn rename<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R)
     _rename(old_dir, to_cstr(old)?.as_ref(), new_dir, to_cstr(new)?.as_ref())
 }
 
-fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr)
-    -> io::Result<()>
-{
+fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr) -> io::Result<()> {
     unsafe {
-        let res = libc::renameat(old_dir.0, old.as_ptr(),
-            new_dir.0, new.as_ptr());
-        if res < 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(())
-        }
+        libc_ok(libc::renameat(old_dir.0, old.as_ptr(), new_dir.0, new.as_ptr()))?;
     }
+    Ok(())
 }
 
 /// Create a hardlink to a file
@@ -624,19 +590,17 @@ pub fn hardlink<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R)
               0)
 }
 
-fn _hardlink(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
-             flags: libc::c_int)
-    -> io::Result<()>
-{
+fn _hardlink(
+    old_dir: &Dir,
+    old: &CStr,
+    new_dir: &Dir,
+    new: &CStr,
+    flags: libc::c_int,
+) -> io::Result<()> {
     unsafe {
-        let res = libc::linkat(old_dir.0, old.as_ptr(),
-            new_dir.0, new.as_ptr(), flags);
-        if res < 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(())
-        }
+        libc_ok(libc::linkat(old_dir.0, old.as_ptr(), new_dir.0, new.as_ptr(), flags))?;
     }
+    Ok(())
 }
 
 /// Rename (move) a file between directories with flags
