@@ -47,12 +47,12 @@ impl Metadata {
         self.stat.st_size as u64
     }
     /// Return low level file type, if available
-    pub fn file_type(&self) -> Option<u32> {
-        Some(self.stat.st_mode as u32 & libc::S_IFMT as u32)
+    pub fn file_type(&self) -> Option<libc::mode_t> {
+        Some(self.stat.st_mode & libc::S_IFMT)
     }
     /// Return device node, if available
-    pub fn ino(&self) -> Option<u64> {
-        Some(self.stat.st_ino as u64)
+    pub fn ino(&self) -> Option<libc::ino_t> {
+        Some(self.stat.st_ino)
     }
     /// Return device node major of the file, if available
     pub fn dev_major(&self) -> Option<u32> {
@@ -77,32 +77,32 @@ impl Metadata {
         }
     }
     /// Return preferered I/O Blocksize, if available
-    pub fn blksize(&self) -> Option<u32> {
-        Some(self.stat.st_blksize as u32)
+    pub fn blksize(&self) -> Option<libc::blksize_t> {
+        Some(self.stat.st_blksize)
     }
     /// Return the number of 512 bytes blocks, if available
-    pub fn blocks(&self) -> Option<u64> {
-        Some(self.stat.st_blocks as u64)
+    pub fn blocks(&self) -> Option<libc::blkcnt_t> {
+        Some(self.stat.st_blocks)
     }
     /// Returns file size (same as len() but Option), if available
-    pub fn size(&self) -> Option<u64> {
-        Some(self.stat.st_size as u64)
+    pub fn size(&self) -> Option<libc::off_t> {
+        Some(self.stat.st_size)
     }
     /// Returns number of hard-links, if available
-    pub fn nlink(&self) -> Option<u32> {
-        Some(self.stat.st_nlink as u32)
+    pub fn nlink(&self) -> Option<libc::nlink_t> {
+        Some(self.stat.st_nlink)
     }
     /// Returns user id, if available
-    pub fn uid(&self) -> Option<u32> {
-        Some(self.stat.st_uid as u32)
+    pub fn uid(&self) -> Option<libc::uid_t> {
+        Some(self.stat.st_uid)
     }
     /// Returns group id, if available
-    pub fn gid(&self) -> Option<u32> {
-        Some(self.stat.st_gid as u32)
+    pub fn gid(&self) -> Option<libc::gid_t> {
+        Some(self.stat.st_gid)
     }
     /// Returns mode bits, if available
-    pub fn file_mode(&self) -> Option<u32> {
-        Some(self.stat.st_mode as u32 & 0o7777)
+    pub fn file_mode(&self) -> Option<libc::mode_t> {
+        Some(self.stat.st_mode & 0o7777)
     }
     /// Returns last access time, if available
     pub fn atime(&self) -> Option<SystemTime> {
