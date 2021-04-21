@@ -5,8 +5,7 @@ use std::os::unix::ffi::OsStrExt;
 
 use libc;
 
-use crate::{Dir, Entry, SimpleType};
-
+use crate::{Entry, SimpleType};
 
 // We have such weird constants because C types are ugly
 const DOT: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
@@ -101,17 +100,6 @@ pub fn open_dirfd(fd: libc::c_int) -> io::Result<DirIter> {
         Err(io::Error::last_os_error())
     } else {
         Ok(DirIter { dir: dir })
-    }
-}
-
-pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<DirIter> {
-    let dir_fd = unsafe {
-        libc::openat(dir.0, path.as_ptr(), libc::O_DIRECTORY|libc::O_CLOEXEC)
-    };
-    if dir_fd < 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        open_dirfd(dir_fd)
     }
 }
 
