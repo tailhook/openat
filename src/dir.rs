@@ -40,11 +40,20 @@ impl Dir {
         Dir::_open(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS)
     }
 
-    /// Open a directory descriptor at specified path with O_PATH (linux only)
-    /// A descriptor obtained with this flag is restricted to do only certain operations (see: man 2 open)
+    /// Open a 'lite' directory descriptor at specified path
+    /// A descriptor obtained with this flag is restricted to do only certain operations:
+    /// - It may be used as anchor for opening sub-objects
+    /// - One can query metadata of this directory
+    /// Using this descriptor for iterating over the content is unspecified.
+    /// Uses O_PATH on Linux
     #[cfg(any(target_os = "linux"))]
-    pub fn open_path<P: AsPath>(path: P) -> io::Result<Dir> {
+    pub fn open_lite<P: AsPath>(path: P) -> io::Result<Dir> {
         Dir::_open(to_cstr(path)?.as_ref(), libc::O_PATH | BASE_OPEN_FLAGS)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn open_lite<P: AsPath>(path: P) -> io::Result<Dir> {
+        Dir::_open(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS)
     }
 
     fn _open(path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
@@ -87,16 +96,26 @@ impl Dir {
         self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW)
     }
 
-    /// Open subdirectory with O_PATH (linux only)
+    /// Open subdirectory with a 'lite' descriptor at specified path
+    /// A descriptor obtained with this flag is restricted to do only certain operations:
+    /// - It may be used as anchor for opening sub-objects
+    /// - One can query metadata of this directory
+    /// Using this descriptor for iterating over the content is unspecified.
+    /// Uses O_PATH on Linux
     ///
     /// Note that this method does not resolve symlinks by default, so you may have to call
-    /// A descriptor obtained with this flag is restricted to do only certain operations (see: man 2 open)
+    ///
     /// [`read_link`] to resolve the real path first.
     ///
     /// [`read_link`]: #method.read_link
     #[cfg(any(target_os = "linux"))]
-    pub fn sub_dir_path<P: AsPath>(&self, path: P) -> io::Result<Dir> {
+    pub fn sub_dir_lite<P: AsPath>(&self, path: P) -> io::Result<Dir> {
         self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW | libc::O_PATH)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn sub_dir_lite<P: AsPath>(&self, path: P) -> io::Result<Dir> {
+        self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW)
     }
 
     fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
