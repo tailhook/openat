@@ -497,26 +497,88 @@ impl Dir {
     /// descriptor. The returned `Dir` will take responsibility for
     /// closing it when it goes out of scope.
     pub unsafe fn from_raw_fd_checked(fd: RawFd) -> io::Result<Self> {
-        let mut stat = mem::zeroed();
-        let res = libc::fstat(fd, &mut stat);
-        if res < 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            match stat.st_mode & libc::S_IFMT {
-                libc::S_IFDIR => Ok(Dir(fd)),
-                _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR))
-            }
+        match fd_type(fd)? {
+            FdType::NormalDir | FdType::LiteDir => Ok(Dir(fd)),
+            _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
     }
 
     /// Creates a new independently owned handle to the underlying directory.
     pub fn try_clone(&self) -> io::Result<Self> {
-        let fd = unsafe { libc::dup(self.0) };
-        if fd == -1 {
-            Err(io::Error::last_os_error())
-        } else {
-            unsafe { Self::from_raw_fd_checked(fd) }
+        Ok(Dir(clone_dirfd(self.0)?))
+    }
+
+    //TODO(cehteh): clone/conversion full<->lite
+}
+
+const CURRENT_DIRECTORY: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
+
+fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
+    unsafe {
+        match fd_type(fd)? {
+            FdType::NormalDir => libc_ok(libc::openat(
+                fd,
+                &CURRENT_DIRECTORY as *const libc::c_char,
+                BASE_OPEN_FLAGS,
+            )),
+            #[cfg(target_os = "linux")]
+            FdType::LiteDir => libc_ok(libc::dup(fd)),
+            _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
+    }
+}
+
+enum FdType {
+    NormalDir,
+    LiteDir,
+    Other,
+}
+
+// OSes with O_DIRECTORY can use fcntl()
+// Linux hash O_PATH
+#[cfg(target_os = "linux")]
+fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
+    let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
+    if flags & libc::O_DIRECTORY != 0 {
+        if flags & libc::O_PATH != 0 {
+            Ok(FdType::LiteDir)
+        } else {
+            Ok(FdType::NormalDir)
+        }
+    } else {
+        Ok(FdType::Other)
+    }
+}
+
+#[cfg(target_os = "freebsd")]
+fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
+    let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
+    if flags & libc::O_DIRECTORY != 0 {
+        Ok(FdType::NormalDir)
+    } else {
+        Ok(FdType::Other)
+    }
+}
+
+// OSes without O_DIRECTORY use stat()
+#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
+    unsafe {
+        let mut stat = mem::zeroed(); // TODO(cehteh): uninit
+        libc_ok(libc::fstat(fd, &mut stat))?;
+        match stat.st_mode & libc::S_IFMT {
+            libc::S_IFDIR => Ok(FdType::NormalDir),
+            _ => Ok(FdType::Other),
+        }
+    }
+}
+
+#[inline]
+fn libc_ok(ret: libc::c_int) -> io::Result<libc::c_int> {
+    if ret != -1 {
+        Ok(ret)
+    } else {
+        Err(io::Error::last_os_error())
     }
 }
 
