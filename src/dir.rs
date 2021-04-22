@@ -13,13 +13,25 @@ use crate::metadata::{self, Metadata};
 use crate::{Dir, AsPath};
 
 // NOTE(cehteh): removed O_PATH since it is linux only and highly unportable (semantics can't be emulated)
-//               but see open_path() below.
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-const BASE_OPEN_FLAGS: libc::c_int = libc::O_DIRECTORY | libc::O_CLOEXEC;
-// NOTE(cehteh): O_DIRECTORY is defined in posix, what is the reason for not using it?
-// TODO(cehteh): on systems that do not support O_DIRECTORY a runtime stat-check is required
-#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
-const BASE_OPEN_FLAGS: libc::c_int = libc::O_CLOEXEC;
+//               but see open_lite() below.
+
+
+#[cfg(feature = "o_directory")]
+const O_DIRECTORY_FLAG: libc::c_int = libc::O_DIRECTORY;
+#[cfg(not(feature = "o_directory"))]
+const O_DIRECTORY_FLAG: libc::c_int = 0;
+
+#[cfg(feature = "o_path")]
+const O_PATH_FLAG: libc::c_int = libc::O_PATH;
+#[cfg(not(feature = "o_path"))]
+const O_PATH_FLAG: libc::c_int = 0;
+
+#[cfg(feature = "o_search")]
+const O_SEARCH_FLAG: libc::c_int = libc::O_SEARCH;
+#[cfg(not(feature = "o_search"))]
+const O_SEARCH_FLAG: libc::c_int = 0;
+
+const BASE_OPEN_FLAGS: libc::c_int = O_DIRECTORY_FLAG | libc::O_CLOEXEC;
 
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
@@ -47,14 +59,8 @@ impl Dir {
     /// - One can query metadata of this directory
     /// Using this descriptor for iterating over the content is unspecified.
     /// Uses O_PATH on Linux
-    #[cfg(any(target_os = "linux"))]
     pub fn open_lite<P: AsPath>(path: P) -> io::Result<Dir> {
-        Dir::_open(to_cstr(path)?.as_ref(), libc::O_PATH | BASE_OPEN_FLAGS)
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    pub fn open_lite<P: AsPath>(path: P) -> io::Result<Dir> {
-        Dir::_open(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS)
+        Dir::_open(to_cstr(path)?.as_ref(), O_PATH_FLAG | BASE_OPEN_FLAGS)
     }
 
     fn _open(path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
@@ -62,17 +68,21 @@ impl Dir {
         Ok(Dir(fd))
     }
 
+    //PLANNED(cehteh): add fn is_dir(&self) using fd_type() below, for the cases one *must*
+    // check that the opened Dir is really a directory. This will be more lightweight than a
+    // stat() when O_DIRECTORY is supported.
+
     /// List subdirectory of this dir
     ///
     /// You can list directory itself with `list_self`.
-    // TODO(cehteh): may be deprecated in favor of list()
     pub fn list_dir<P: AsPath>(&self, path: P) -> io::Result<DirIter> {
+        //TODO(cehteh): with(O_SEARCH_FLAG)
         self.sub_dir(path)?.list()
     }
 
     /// List this dir
-    // TODO(cehteh): may be deprecated in favor of list()
     pub fn list_self(&self) -> io::Result<DirIter> {
+        //TODO(cehteh): with(O_SEARCH_FLAG)
         self.clone_upgrade()?.list()
     }
 
@@ -106,14 +116,8 @@ impl Dir {
     /// [`read_link`] to resolve the real path first.
     ///
     /// [`read_link`]: #method.read_link
-    #[cfg(any(target_os = "linux"))]
     pub fn sub_dir_lite<P: AsPath>(&self, path: P) -> io::Result<Dir> {
-        self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW | libc::O_PATH)
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    pub fn sub_dir_lite<P: AsPath>(&self, path: P) -> io::Result<Dir> {
-        self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW)
+        self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW | O_PATH_FLAG)
     }
 
     fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
@@ -223,7 +227,7 @@ impl Dir {
     /// Currently, we recommend to fallback on any error if this operation
     /// can't be accomplished rather than relying on specific error codes,
     /// because semantics of errors are very ugly.
-    #[cfg(target_os="linux")]
+    #[cfg(feature = "o_tmpfile")]
     pub fn new_unnamed_file(&self, mode: libc::mode_t)
         -> io::Result<File>
     {
@@ -252,10 +256,13 @@ impl Dir {
     /// Currently, we recommend to fallback on any error if this operation
     /// can't be accomplished rather than relying on specific error codes,
     /// because semantics of errors are very ugly.
-    #[cfg(not(target_os="linux"))]
+    #[cfg(not(feature = "o_tmpfile"))]
     pub fn new_unnamed_file<P: AsPath>(&self, _mode: libc::mode_t)
         -> io::Result<File>
     {
+        //NOTE(cehteh): tempfiles can be obtained by creating a random named file and
+        // immediately unlink them. This is portable so far, still link_file_at() wont work on
+        // those.
         Err(io::Error::new(io::ErrorKind::Other,
             "creating unnamed tmpfiles is only supported on linux"))
     }
@@ -271,7 +278,7 @@ impl Dir {
     /// fails. But in obscure scenarios where `/proc` is not mounted this
     /// method may fail even on linux. So your code should be able to fallback
     /// to a named file if this method fails too.
-    #[cfg(target_os="linux")]
+    #[cfg(feature = "link_file_at")]
     pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, file: &F, path: P)
         -> io::Result<()>
     {
@@ -292,7 +299,10 @@ impl Dir {
     /// fails. But in obscure scenarios where `/proc` is not mounted this
     /// method may fail even on linux. So your code should be able to fallback
     /// to a named file if this method fails too.
-    #[cfg(not(target_os="linux"))]
+    //NOTE(cehteh): would it make sense to remove this function (for non linux), this will
+    // generate a compile time error rather than a runtime error, which most likely is
+    // favorable since the semantic cant easily emulated.
+    #[cfg(not(feature = "link_file_at"))]
     pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, _file: F, _path: P)
         -> io::Result<()>
     {
@@ -389,7 +399,7 @@ impl Dir {
     /// Similar to `local_rename` but atomically swaps both paths
     ///
     /// Only supported on Linux.
-    #[cfg(target_os="linux")]
+    #[cfg(feature = "rename_exchange")]
     pub fn local_exchange<P: AsPath, R: AsPath>(&self, old: P, new: R)
         -> io::Result<()>
     {
@@ -428,7 +438,7 @@ impl Dir {
     ///
     /// This uses symlinks in `/proc/self`, they sometimes may not be
     /// available so use with care.
-    // FIXME(cehteh): proc stuff isn't portable
+    #[cfg(feature = "proc_self_fd")]
     pub fn recover_path(&self) -> io::Result<PathBuf> {
         let fd = self.0;
         if fd != libc::AT_FDCWD {
@@ -506,7 +516,7 @@ fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
                 &CURRENT_DIRECTORY as *const libc::c_char,
                 BASE_OPEN_FLAGS,
             )),
-            #[cfg(target_os = "linux")]
+            #[cfg(feature = "o_path")]
             FdType::LiteDir => libc_ok(libc::dup(fd)),
             _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
@@ -529,19 +539,19 @@ fn clone_dirfd_upgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
 fn clone_dirfd_downgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
     unsafe {
         match fd_type(fd)? {
-            #[cfg(target_os = "linux")]
+            #[cfg(feature = "o_path")]
             FdType::NormalDir => libc_ok(libc::openat(
                 fd,
                 &CURRENT_DIRECTORY as *const libc::c_char,
                 libc::O_PATH | BASE_OPEN_FLAGS,
             )),
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(not(feature = "o_path"))]
             FdType::NormalDir => libc_ok(libc::openat(
                 fd,
                 &CURRENT_DIRECTORY as *const libc::c_char,
                 BASE_OPEN_FLAGS,
             )),
-            #[cfg(target_os = "linux")]
+            #[cfg(feature = "o_path")]
             FdType::LiteDir => libc_ok(libc::dup(fd)),
             _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
@@ -556,7 +566,7 @@ enum FdType {
 
 // OSes with O_DIRECTORY can use fcntl()
 // Linux hash O_PATH
-#[cfg(target_os = "linux")]
+#[cfg(all(feature = "o_path", feature = "o_directory"))]
 fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
     if flags & libc::O_DIRECTORY != 0 {
@@ -570,7 +580,7 @@ fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     }
 }
 
-#[cfg(target_os = "freebsd")]
+#[cfg(all(not(feature = "o_path"), feature = "o_directory"))]
 fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
     if flags & libc::O_DIRECTORY != 0 {
@@ -581,7 +591,7 @@ fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
 }
 
 // OSes without O_DIRECTORY use stat()
-#[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+#[cfg(not(feature = "o_directory"))]
 fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     unsafe {
         let mut stat = mem::zeroed(); // TODO(cehteh): uninit
@@ -656,7 +666,7 @@ fn _hardlink(
 /// fallback to copying if needed.
 ///
 /// Only supported on Linux.
-#[cfg(target_os="linux")]
+#[cfg(feature = "renameat_flags")]
 pub fn rename_flags<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R,
     flags: libc::c_int)
     -> io::Result<()>
@@ -667,7 +677,7 @@ pub fn rename_flags<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R,
         flags)
 }
 
-#[cfg(target_os="linux")]
+#[cfg(feature = "renameat_flags")]
 fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
     flags: libc::c_int)
     -> io::Result<()>
@@ -742,8 +752,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(any(target_os = "freebsd", target_os = "linux"), should_panic(expected = "Not a directory"))]
-    // NOTE(cehteh): should fail in all cases! see O_DIRECTORY at the top
+    #[cfg_attr(feature = "o_directory", should_panic(expected = "Not a directory"))]
     fn test_open_file() {
         Dir::open("src/lib.rs").unwrap();
     }

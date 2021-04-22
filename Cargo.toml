@@ -14,6 +14,23 @@ version = "0.1.21"
 authors = ["paul@colomiets.name"]
 edition = "2018"
 
+[features]
+default = []
+#default = ["linux"]
+linux = ["o_path", "o_directory", "o_tmpfile", "statx", "proc_self_fd", "link_file_at", "rename_exchange", "renameat_flags"]
+#freebsd = ["o_directory", "o_search"]
+#NOTE(cehteh): does freebsd have /proc/self/fd like linux?
+#NOTE(cehteh): complete this for other OS'es until there is some build.rs autodetection
+o_path = []
+o_directory = []
+o_tmpfile = []
+o_search = []
+link_file_at = []
+proc_self_fd = []
+renameat_flags = []
+rename_exchange = []
+statx = []
+
 [dependencies]
 libc = "0.2.34"
 
