@@ -21,6 +21,18 @@ pub struct DirIter {
     dir: *mut libc::DIR,
 }
 
+// It may not be thread-safe to call readdir concurrently from multiple threads on a single
+// `DIR*`, but all `Send` requires is that we can call it from different threads
+// non-concurrently - so this is fine.
+//
+// `man readdir` says:
+//
+// > It is expected that a future version of POSIX.1 will require that readdir() be
+// > thread-safe when concurrently employed on different directory streams.
+//
+// so in the future we may also be able to implement `Sync`.
+unsafe impl Send for DirIter {}
+
 /// Position in a DirIter as obtained by 'DirIter::current_position()'
 ///
 /// The position is only valid for the DirIter it was retrieved from.
