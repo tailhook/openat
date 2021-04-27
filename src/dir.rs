@@ -481,7 +481,7 @@ impl Dir {
     pub unsafe fn from_raw_fd_checked(fd: RawFd) -> io::Result<Self> {
         match fd_type(fd)? {
             FdType::NormalDir | FdType::LiteDir => Ok(Dir(fd)),
-            _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
+            FdType::Other => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
     }
 
@@ -561,9 +561,9 @@ enum FdType {
     Other,
 }
 
-// OSes with O_DIRECTORY can use fcntl()
+// OSes with fcntl() that returns O_DIRECTORY
 // Linux hash O_PATH
-#[cfg(all(feature = "o_path", feature = "o_directory"))]
+#[cfg(all(feature = "o_path", feature = "fcntl_o_directory"))]
 fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
     if flags & libc::O_DIRECTORY != 0 {
@@ -577,7 +577,7 @@ fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     }
 }
 
-#[cfg(all(not(feature = "o_path"), feature = "o_directory"))]
+#[cfg(all(not(feature = "o_path"), feature = "fcntl_o_directory"))]
 fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
     if flags & libc::O_DIRECTORY != 0 {
@@ -587,8 +587,8 @@ fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     }
 }
 
-// OSes without O_DIRECTORY use stat()
-#[cfg(not(feature = "o_directory"))]
+// OSes where fcntl won't return O_DIRECTORY use stat()
+#[cfg(not(feature = "fcntl_o_directory"))]
 fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     unsafe {
         let mut stat = mem::zeroed(); // TODO(cehteh): uninit
