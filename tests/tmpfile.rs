@@ -6,7 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 use openat::Dir;
 
 #[test]
-#[cfg(feature = "link_file_at")]
+#[cfg(all(feature = "o_tmpfile", feature = "link_file_at"))]
 fn unnamed_tmp_file_link() -> Result<(), io::Error> {
     let tmp = tempfile::tempdir()?;
     let dir = Dir::open(tmp.path())?;
