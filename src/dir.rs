@@ -260,9 +260,6 @@ impl Dir {
     pub fn new_unnamed_file<P: AsPath>(&self, _mode: libc::mode_t)
         -> io::Result<File>
     {
-        //NOTE(cehteh): tempfiles can be obtained by creating a random named file and
-        // immediately unlink them. This is portable so far, still link_file_at() wont work on
-        // those.
         Err(io::Error::new(io::ErrorKind::Other,
             "creating unnamed tmpfiles is only supported on linux"))
     }
