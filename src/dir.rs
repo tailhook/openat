@@ -68,9 +68,22 @@ impl Dir {
         Ok(Dir(fd))
     }
 
-    //PLANNED(cehteh): add fn is_dir(&self) using fd_type() below, for the cases one *must*
-    // check that the opened Dir is really a directory. This will be more lightweight than a
-    // stat() when O_DIRECTORY is supported.
+    /// Checks if the fd associated with the Dir object is really a directory.
+    /// There are subtle differences in how directories can be opened and what properties the
+    /// resulting file handles have. On some platforms it is possible that
+    /// Dir::open("somefile") succeeds. This will usually raise errors later when one tries to
+    /// do Directory operations on this. While checking if such an handle comes with cost of a
+    /// potential expensive 'stat()' operation. This library makes the assumption that in the
+    /// 'usual' case Dir objects are only created on directories and operations on Dir handles
+    /// handle errors properly. Still in some cases one may check a freshly created handle
+    /// explicitly. Thats what 'is_dir()' is for. Returns 'true' when the underlying handles
+    /// represents a directory and false otherwise.
+    pub fn is_dir(&self) -> bool {
+        match fd_type(self.0).unwrap_or(FdType::Other){
+            FdType::NormalDir | FdType::LiteDir => true,
+            FdType::Other => false,
+        }
+    }
 
     /// List subdirectory of this dir
     ///
@@ -747,12 +760,6 @@ mod test {
     #[test]
     fn test_open_ok() {
         assert!(Dir::open("src").is_ok());
-    }
-
-    #[test]
-    #[cfg_attr(feature = "o_directory", should_panic(expected = "Not a directory"))]
-    fn test_open_file() {
-        Dir::open("src/lib.rs").unwrap();
     }
 
     #[test]
