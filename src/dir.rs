@@ -505,6 +505,7 @@ impl Dir {
 
 const CURRENT_DIRECTORY: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
 
+//TODO(cehteh): eventually the clone calls should replicate O_SEARCH, maybe other file flags
 fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
     unsafe {
         match fd_type(fd)? {
