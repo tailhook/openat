@@ -14,8 +14,27 @@ version = "0.1.21"
 authors = ["paul@colomiets.name"]
 edition = "2018"
 
+[features]
+default = []
+linux = ["o_path", "o_directory", "o_tmpfile", "statx", "proc_self_fd", "link_file_at", "rename_exchange", "renameat_flags"]
+#NOTE(cehteh): eventually provide some baseline configs for other OS'es (for cross compilation)
+o_path = []
+o_directory = []
+o_tmpfile = []
+o_search = []
+fcntl_o_directory = []
+proc_self_fd = []
+link_file_at = []
+renameat_flags = []
+rename_exchange = []
+statx = []
+
 [dependencies]
 libc = "0.2.34"
+
+[build-dependencies]
+libc = "0.2.34"
+conf_test = "0.1"
 
 [dev-dependencies]
 argparse = "0.2.1"
