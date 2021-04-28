@@ -73,6 +73,7 @@ pub struct Dir(RawFd);
 pub struct Entry {
     name: CString,
     file_type: Option<SimpleType>,
+    ino: libc::ino_t,
 }
 
 #[cfg(test)]
