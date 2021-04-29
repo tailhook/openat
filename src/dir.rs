@@ -10,7 +10,7 @@ use libc;
 use crate::list::{open_dirfd, DirIter};
 use crate::metadata::{self, Metadata};
 
-use crate::{Dir, AsPath};
+use crate::{Dir, AsPath, DirFlags};
 
 // NOTE(cehteh): removed O_PATH since it is linux only and highly unportable (semantics can't be emulated)
 //               but see open_lite() below.
@@ -22,16 +22,14 @@ const O_DIRECTORY_FLAG: libc::c_int = libc::O_DIRECTORY;
 const O_DIRECTORY_FLAG: libc::c_int = 0;
 
 #[cfg(feature = "o_path")]
-const O_PATH_FLAG: libc::c_int = libc::O_PATH;
+pub(crate) const O_PATH_FLAG: libc::c_int = libc::O_PATH;
 #[cfg(not(feature = "o_path"))]
-const O_PATH_FLAG: libc::c_int = 0;
+pub(crate) const O_PATH_FLAG: libc::c_int = 0;
 
 #[cfg(feature = "o_search")]
 const O_SEARCH_FLAG: libc::c_int = libc::O_SEARCH;
 #[cfg(not(feature = "o_search"))]
 const O_SEARCH_FLAG: libc::c_int = 0;
-
-const BASE_OPEN_FLAGS: libc::c_int = O_DIRECTORY_FLAG | libc::O_CLOEXEC;
 
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
@@ -47,10 +45,19 @@ impl Dir {
         Dir(libc::AT_FDCWD)
     }
 
+    /// Create a flags builder for Dir objects.  Initial flags default to `O_CLOEXEC'. More
+    /// flags can be set added by 'with()' and existing/default flags can be removed by
+    /// 'without()'. The flags builder can the be used to 'open()' or 'open_lite()' to create
+    /// a Dir handle.
+    #[inline]
+    pub fn new() -> DirFlags {
+        DirFlags::new(libc::O_CLOEXEC)
+    }
+
     /// Open a directory descriptor at specified path
     // TODO(tailhook) maybe accept only absolute paths?
     pub fn open<P: AsPath>(path: P) -> io::Result<Dir> {
-        Dir::_open(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS)
+        Dir::_open(to_cstr(path)?.as_ref(), libc::O_CLOEXEC)
     }
 
     /// Open a 'lite' directory descriptor at specified path
@@ -60,11 +67,11 @@ impl Dir {
     /// Using this descriptor for iterating over the content is unspecified.
     /// Uses O_PATH on Linux
     pub fn open_lite<P: AsPath>(path: P) -> io::Result<Dir> {
-        Dir::_open(to_cstr(path)?.as_ref(), O_PATH_FLAG | BASE_OPEN_FLAGS)
+        Dir::_open(to_cstr(path)?.as_ref(), O_PATH_FLAG | libc::O_CLOEXEC)
     }
 
-    fn _open(path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
-        let fd = unsafe { libc_ok(libc::open(path.as_ptr(), flags))? };
+    pub(crate) fn _open(path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
+        let fd = unsafe { libc_ok(libc::open(path.as_ptr(), O_DIRECTORY_FLAG | flags))? };
         Ok(Dir(fd))
     }
 
@@ -114,7 +121,7 @@ impl Dir {
     ///
     /// [`read_link`]: #method.read_link
     pub fn sub_dir<P: AsPath>(&self, path: P) -> io::Result<Dir> {
-        self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW)
+        self._sub_dir(to_cstr(path)?.as_ref(), libc::O_CLOEXEC | libc::O_NOFOLLOW)
     }
 
     /// Open subdirectory with a 'lite' descriptor at specified path
@@ -130,11 +137,11 @@ impl Dir {
     ///
     /// [`read_link`]: #method.read_link
     pub fn sub_dir_lite<P: AsPath>(&self, path: P) -> io::Result<Dir> {
-        self._sub_dir(to_cstr(path)?.as_ref(), BASE_OPEN_FLAGS | libc::O_NOFOLLOW | O_PATH_FLAG)
+        self._sub_dir(to_cstr(path)?.as_ref(), libc::O_CLOEXEC | libc::O_NOFOLLOW | O_PATH_FLAG)
     }
 
     fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
-        Ok(Dir(unsafe { libc_ok(libc::openat(self.0, path.as_ptr(), flags))? }))
+        Ok(Dir(unsafe { libc_ok(libc::openat(self.0, path.as_ptr(), flags | O_DIRECTORY_FLAG))? }))
     }
 
     /// Read link in this directory
@@ -525,7 +532,7 @@ fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
             FdType::NormalDir => libc_ok(libc::openat(
                 fd,
                 &CURRENT_DIRECTORY as *const libc::c_char,
-                BASE_OPEN_FLAGS,
+                O_DIRECTORY_FLAG | libc::O_CLOEXEC,
             )),
             #[cfg(feature = "o_path")]
             FdType::LiteDir => libc_ok(libc::dup(fd)),
@@ -540,7 +547,7 @@ fn clone_dirfd_upgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
             FdType::NormalDir | FdType::LiteDir => libc_ok(libc::openat(
                 fd,
                 &CURRENT_DIRECTORY as *const libc::c_char,
-                BASE_OPEN_FLAGS,
+                O_DIRECTORY_FLAG | libc::O_CLOEXEC,
             )),
             _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
@@ -554,13 +561,13 @@ fn clone_dirfd_downgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
             FdType::NormalDir => libc_ok(libc::openat(
                 fd,
                 &CURRENT_DIRECTORY as *const libc::c_char,
-                libc::O_PATH | BASE_OPEN_FLAGS,
+                libc::O_PATH | O_DIRECTORY_FLAG | libc::O_CLOEXEC,
             )),
             #[cfg(not(feature = "o_path"))]
             FdType::NormalDir => libc_ok(libc::openat(
                 fd,
                 &CURRENT_DIRECTORY as *const libc::c_char,
-                BASE_OPEN_FLAGS,
+                O_DIRECTORY_FLAG | libc::O_CLOEXEC,
             )),
             #[cfg(feature = "o_path")]
             FdType::LiteDir => libc_ok(libc::dup(fd)),
@@ -569,6 +576,7 @@ fn clone_dirfd_downgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
     }
 }
 
+//TODO: let fd_type() return the queried flags, clone will need them
 enum FdType {
     NormalDir,
     LiteDir,
@@ -742,7 +750,7 @@ impl Drop for Dir {
     }
 }
 
-fn to_cstr<P: AsPath>(path: P) -> io::Result<P::Buffer> {
+pub(crate) fn to_cstr<P: AsPath>(path: P) -> io::Result<P::Buffer> {
     path.to_path()
     .ok_or_else(|| {
         io::Error::new(io::ErrorKind::InvalidInput,

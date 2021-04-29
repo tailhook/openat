@@ -51,12 +51,14 @@ mod list;
 mod name;
 mod filetype;
 mod metadata;
+mod builder;
 
 pub use crate::list::DirIter;
 pub use crate::name::AsPath;
 pub use crate::dir::{rename, hardlink};
 pub use crate::filetype::SimpleType;
 pub use crate::metadata::Metadata;
+pub use crate::builder::{DirFlags};
 
 use std::ffi::CString;
 use std::os::unix::io::RawFd;
