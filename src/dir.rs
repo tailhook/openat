@@ -50,7 +50,7 @@ impl Dir {
     /// 'without()'. The flags builder can the be used to 'open()' or 'open_lite()' to create
     /// a Dir handle.
     #[inline]
-    pub fn new() -> DirFlags {
+    pub fn flags() -> DirFlags {
         DirFlags::new(libc::O_CLOEXEC)
     }
 

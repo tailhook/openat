@@ -3,7 +3,7 @@ use openat::Dir;
 
 #[test]
 fn dir_flags_builder_basic() {
-    let dir = Dir::new()
+    let dir = Dir::flags()
         .without(libc::O_CLOEXEC)
         .with(libc::O_NOFOLLOW)
         .open("src");

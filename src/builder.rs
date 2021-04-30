@@ -16,7 +16,7 @@ pub struct DirFlags {
 impl DirFlags {
     #[inline]
     pub(crate) fn new(flags: libc::c_int) -> DirFlags {
-        DirFlags { flags: flags }
+        DirFlags { flags }
     }
 
     /// Sets the given flags
