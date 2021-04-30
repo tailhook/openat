@@ -58,7 +58,7 @@ pub use crate::name::AsPath;
 pub use crate::dir::{rename, hardlink};
 pub use crate::filetype::SimpleType;
 pub use crate::metadata::Metadata;
-pub use crate::builder::{DirFlags};
+pub use crate::builder::{DirFlags, DirMethodFlags};
 
 use std::ffi::CString;
 use std::os::unix::io::RawFd;

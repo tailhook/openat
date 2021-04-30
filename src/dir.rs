@@ -10,7 +10,7 @@ use libc;
 use crate::list::{open_dirfd, DirIter};
 use crate::metadata::{self, Metadata};
 
-use crate::{Dir, AsPath, DirFlags};
+use crate::{Dir, AsPath, DirFlags, DirMethodFlags};
 
 // NOTE(cehteh): removed O_PATH since it is linux only and highly unportable (semantics can't be emulated)
 //               but see open_lite() below.
@@ -96,14 +96,12 @@ impl Dir {
     ///
     /// You can list directory itself with `list_self`.
     pub fn list_dir<P: AsPath>(&self, path: P) -> io::Result<DirIter> {
-        //TODO(cehteh): with(O_SEARCH_FLAG)
-        self.sub_dir(path)?.list()
+        self.with(O_SEARCH_FLAG).sub_dir(path)?.list()
     }
 
     /// List this dir
     pub fn list_self(&self) -> io::Result<DirIter> {
-        //TODO(cehteh): with(O_SEARCH_FLAG)
-        self.clone_upgrade()?.list()
+        self.with(O_SEARCH_FLAG).clone_upgrade()?.list()
     }
 
     /// Create a DirIter from a Dir
@@ -112,6 +110,23 @@ impl Dir {
         let fd = self.0;
         std::mem::forget(self);
         open_dirfd(fd)
+    }
+
+    /// Create a flags builder for member methods. Defaults to `O_CLOEXEC | O_NOFOLLOW` plus
+    /// the given flags. Further flags can be added/removed by the 'with()'/'without()'
+    /// members. And finally be used by 'sub_dir()' and the different 'open()' calls.
+    #[inline]
+    pub fn with<'a>(&'a self, flags: libc::c_int) -> DirMethodFlags<'a> {
+        DirMethodFlags::new(self, libc::O_CLOEXEC | libc::O_NOFOLLOW | flags)
+    }
+
+    /// Create a flags builder for member methods. Defaults to `O_CLOEXEC | O_NOFOLLOW` with
+    /// the given flags (which may O_CLOEXEC or O_NOFOLLOW) removed. Further flags can be
+    /// added/removed by the 'with()'/'without()' members. And finally be used by 'sub_dir()'
+    /// and the different 'open()' calls.
+    #[inline]
+    pub fn without<'a>(&'a self, flags: libc::c_int) -> DirMethodFlags<'a> {
+        DirMethodFlags::new(self, (libc::O_CLOEXEC | libc::O_NOFOLLOW) & !flags)
     }
 
     /// Open subdirectory
@@ -140,7 +155,7 @@ impl Dir {
         self._sub_dir(to_cstr(path)?.as_ref(), libc::O_CLOEXEC | libc::O_NOFOLLOW | O_PATH_FLAG)
     }
 
-    fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
+    pub(crate) fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
         Ok(Dir(unsafe { libc_ok(libc::openat(self.0, path.as_ptr(), flags | O_DIRECTORY_FLAG))? }))
     }
 
@@ -355,7 +370,7 @@ impl Dir {
             mode)
     }
 
-    fn _open_file(&self, path: &CStr, flags: libc::c_int, mode: libc::mode_t)
+    pub(crate) fn _open_file(&self, path: &CStr, flags: libc::c_int, mode: libc::mode_t)
         -> io::Result<File>
     {
         unsafe {
@@ -513,7 +528,7 @@ impl Dir {
 
     /// Creates a new 'Normal' independently owned handle to the underlying directory.
     pub fn clone_upgrade(&self) -> io::Result<Self> {
-        Ok(Dir(clone_dirfd_upgrade(self.0)?))
+        Ok(Dir(clone_dirfd_upgrade(self.0, 0)?))
     }
 
     /// Creates a new 'Lite' independently owned handle to the underlying directory.
@@ -541,13 +556,13 @@ fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
     }
 }
 
-fn clone_dirfd_upgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
+pub(crate) fn clone_dirfd_upgrade(fd: libc::c_int, flags: libc::c_int) -> io::Result<libc::c_int> {
     unsafe {
         match fd_type(fd)? {
             FdType::NormalDir | FdType::LiteDir => libc_ok(libc::openat(
                 fd,
                 &CURRENT_DIRECTORY as *const libc::c_char,
-                O_DIRECTORY_FLAG | libc::O_CLOEXEC,
+                flags | O_DIRECTORY_FLAG | libc::O_CLOEXEC,
             )),
             _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
@@ -576,7 +591,6 @@ fn clone_dirfd_downgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
     }
 }
 
-//TODO: let fd_type() return the queried flags, clone will need them
 enum FdType {
     NormalDir,
     LiteDir,
@@ -584,7 +598,7 @@ enum FdType {
 }
 
 // OSes with fcntl() that returns O_DIRECTORY
-// Linux hash O_PATH
+// Linux has O_PATH
 #[cfg(all(feature = "o_path", feature = "fcntl_o_directory"))]
 fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
