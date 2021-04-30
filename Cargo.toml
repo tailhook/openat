@@ -34,7 +34,7 @@ libc = "0.2.34"
 
 [build-dependencies]
 libc = "0.2.34"
-conf_test = "0.1"
+conf_test = "0.2"
 
 [dev-dependencies]
 argparse = "0.2.1"
