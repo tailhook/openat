@@ -1,5 +1,5 @@
 extern crate openat;
-use openat::Dir;
+use openat::{Dir};
 
 #[test]
 fn dir_flags_builder_basic() {
@@ -39,4 +39,13 @@ fn method_flags_builder_reuse() {
 
     assert!(file1.is_ok());
     assert!(file2.is_ok());
+}
+
+#[test]
+fn method_flags_exported() {
+    let dir = Dir::flags()
+        .with(openat::O_PATH)
+        .open("src");
+
+    assert!(dir.is_ok());
 }
