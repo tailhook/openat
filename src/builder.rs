@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::fs::File;
 use std::io;
 
-use crate::dir::{clone_dirfd_upgrade, to_cstr, O_PATH_FLAG};
+use crate::dir::{clone_dirfd_upgrade, to_cstr};
 use crate::{AsPath, Dir};
 
 /// 'Dir::new()' creates a new DirFlags object with default (O_CLOEXEC) flags. One can then
