@@ -48,12 +48,6 @@ impl DirFlags {
     pub fn open<P: AsPath>(&self, path: P) -> io::Result<Dir> {
         Dir::_open(to_cstr(path)?.as_ref(), self.flags)
     }
-
-    /// Open a lite directory descriptor at specified path
-    #[inline]
-    pub fn open_lite<P: AsPath>(&self, path: P) -> io::Result<Dir> {
-        Dir::_open(to_cstr(path)?.as_ref(), O_PATH_FLAG | self.flags)
-    }
 }
 
 /// 'Dir::with(&self)'/'Dir::with(&self)' creates a new DirMethodsFlags object with default
@@ -93,13 +87,6 @@ impl<'a> DirMethodFlags<'a> {
     #[inline]
     pub fn sub_dir<P: AsPath>(&self, path: P) -> io::Result<Dir> {
         self.object._sub_dir(to_cstr(path)?.as_ref(), self.flags)
-    }
-
-    /// Open subdirectory with a 'lite' descriptor at specified path
-    #[inline]
-    pub fn sub_dir_lite<P: AsPath>(&self, path: P) -> io::Result<Dir> {
-        self.object
-            ._sub_dir(to_cstr(path)?.as_ref(), self.flags | O_PATH_FLAG)
     }
 
     /// Open file for reading in this directory

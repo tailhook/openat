@@ -12,9 +12,6 @@ use crate::metadata::{self, Metadata};
 
 use crate::{Dir, AsPath, DirFlags, DirMethodFlags};
 
-// NOTE(cehteh): removed O_PATH since it is linux only and highly unportable (semantics can't be emulated)
-//               but see open_lite() below.
-
 
 #[cfg(feature = "o_directory")]
 const O_DIRECTORY_FLAG: libc::c_int = libc::O_DIRECTORY;
@@ -47,26 +44,23 @@ impl Dir {
 
     /// Create a flags builder for Dir objects.  Initial flags default to `O_CLOEXEC'. More
     /// flags can be set added by 'with()' and existing/default flags can be removed by
-    /// 'without()'. The flags builder can the be used to 'open()' or 'open_lite()' to create
+    /// 'without()'. The flags builder can the be used to 'open()' to create
     /// a Dir handle.
     #[inline]
     pub fn flags() -> DirFlags {
         DirFlags::new(libc::O_CLOEXEC)
     }
 
-    /// Open a directory descriptor at specified path
-    // TODO(tailhook) maybe accept only absolute paths?
-    pub fn open<P: AsPath>(path: P) -> io::Result<Dir> {
-        Dir::_open(to_cstr(path)?.as_ref(), libc::O_CLOEXEC)
-    }
-
-    /// Open a 'lite' directory descriptor at specified path
+    /// Open a directory descriptor at specified path with O_PATH when available.
     /// A descriptor obtained with this flag is restricted to do only certain operations:
     /// - It may be used as anchor for opening sub-objects
     /// - One can query metadata of this directory
-    /// Using this descriptor for iterating over the content is unspecified.
-    /// Uses O_PATH on Linux
-    pub fn open_lite<P: AsPath>(path: P) -> io::Result<Dir> {
+    ///
+    /// This handle is not suitable for a 'Dir::list()' call and may yield a runtime error.
+    /// Use 'Dir::flags().open()' to get a handle without O_PATH defined or use
+    /// 'Dir::list_self()' which clone-upgrades the handle it used for the iteration.
+    // TODO(tailhook) maybe accept only absolute paths?
+    pub fn open<P: AsPath>(path: P) -> io::Result<Dir> {
         Dir::_open(to_cstr(path)?.as_ref(), O_PATH_FLAG | libc::O_CLOEXEC)
     }
 
@@ -86,8 +80,8 @@ impl Dir {
     /// explicitly. Thats what 'is_dir()' is for. Returns 'true' when the underlying handles
     /// represents a directory and false otherwise.
     pub fn is_dir(&self) -> bool {
-        match fd_type(self.0).unwrap_or(FdType::Other){
-            FdType::NormalDir | FdType::LiteDir => true,
+        match fd_type(self.0).unwrap_or(FdType::Other) {
+            FdType::NormalDir | FdType::OPathDir => true,
             FdType::Other => false,
         }
     }
@@ -105,7 +99,7 @@ impl Dir {
     }
 
     /// Create a DirIter from a Dir
-    /// Dir must not be a 'Lite' handle
+    /// Dir must not be a handle opened with O_PATH.
     pub fn list(self) -> io::Result<DirIter> {
         let fd = self.0;
         std::mem::forget(self);
@@ -129,30 +123,25 @@ impl Dir {
         DirMethodFlags::new(self, (libc::O_CLOEXEC | libc::O_NOFOLLOW) & !flags)
     }
 
-    /// Open subdirectory
-    ///
-    /// Note that this method does not resolve symlinks by default, so you may have to call
-    /// [`read_link`] to resolve the real path first.
-    ///
-    /// [`read_link`]: #method.read_link
-    pub fn sub_dir<P: AsPath>(&self, path: P) -> io::Result<Dir> {
-        self._sub_dir(to_cstr(path)?.as_ref(), libc::O_CLOEXEC | libc::O_NOFOLLOW)
-    }
-
-    /// Open subdirectory with a 'lite' descriptor at specified path
+    /// Open subdirectory with O_PATH when available.
     /// A descriptor obtained with this flag is restricted to do only certain operations:
     /// - It may be used as anchor for opening sub-objects
     /// - One can query metadata of this directory
-    /// Using this descriptor for iterating over the content is unspecified.
-    /// Uses O_PATH on Linux
+    ///
+    /// This handle is not suitable for a 'Dir::list()' call and may yield a runtime error.
+    /// Use 'Dir::with(0).sub_dir()' to get a handle without O_PATH defined or use
+    /// 'Dir::list_dir()' which clone-upgrades the handle it used for the iteration.
     ///
     /// Note that this method does not resolve symlinks by default, so you may have to call
-    ///
-    /// [`read_link`] to resolve the real path first.
+    /// [`read_link`] to resolve the real path first or create a handle
+    /// 'without(libc::O_NOFOLLOW)'.
     ///
     /// [`read_link`]: #method.read_link
-    pub fn sub_dir_lite<P: AsPath>(&self, path: P) -> io::Result<Dir> {
-        self._sub_dir(to_cstr(path)?.as_ref(), libc::O_CLOEXEC | libc::O_NOFOLLOW | O_PATH_FLAG)
+    pub fn sub_dir<P: AsPath>(&self, path: P) -> io::Result<Dir> {
+        self._sub_dir(
+            to_cstr(path)?.as_ref(),
+            O_PATH_FLAG | libc::O_CLOEXEC | libc::O_NOFOLLOW,
+        )
     }
 
     pub(crate) fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
@@ -515,13 +504,13 @@ impl Dir {
     /// closing it when it goes out of scope.
     pub unsafe fn from_raw_fd_checked(fd: RawFd) -> io::Result<Self> {
         match fd_type(fd)? {
-            FdType::NormalDir | FdType::LiteDir => Ok(Dir(fd)),
+            FdType::NormalDir | FdType::OPathDir => Ok(Dir(fd)),
             FdType::Other => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
     }
 
     /// Creates a new independently owned handle to the underlying directory.
-    /// The new handle has the same (Normal/Lite) semantics as the original handle.
+    /// The new handle has the same (Normal/O_PATH) semantics as the original handle.
     pub fn try_clone(&self) -> io::Result<Self> {
         Ok(Dir(clone_dirfd(self.0)?))
     }
@@ -531,11 +520,10 @@ impl Dir {
         Ok(Dir(clone_dirfd_upgrade(self.0, 0)?))
     }
 
-    /// Creates a new 'Lite' independently owned handle to the underlying directory.
+    /// Creates a new 'O_PATH' restricted independently owned handle to the underlying directory.
     pub fn clone_downgrade(&self) -> io::Result<Self> {
         Ok(Dir(clone_dirfd_downgrade(self.0)?))
     }
-
 }
 
 const CURRENT_DIRECTORY: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
@@ -550,7 +538,7 @@ fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
                 O_DIRECTORY_FLAG | libc::O_CLOEXEC,
             )),
             #[cfg(feature = "o_path")]
-            FdType::LiteDir => libc_ok(libc::dup(fd)),
+            FdType::OPathDir => libc_ok(libc::dup(fd)),
             _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
     }
@@ -559,7 +547,7 @@ fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
 pub(crate) fn clone_dirfd_upgrade(fd: libc::c_int, flags: libc::c_int) -> io::Result<libc::c_int> {
     unsafe {
         match fd_type(fd)? {
-            FdType::NormalDir | FdType::LiteDir => libc_ok(libc::openat(
+            FdType::NormalDir | FdType::OPathDir => libc_ok(libc::openat(
                 fd,
                 &CURRENT_DIRECTORY as *const libc::c_char,
                 flags | O_DIRECTORY_FLAG | libc::O_CLOEXEC,
@@ -585,7 +573,7 @@ fn clone_dirfd_downgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
                 O_DIRECTORY_FLAG | libc::O_CLOEXEC,
             )),
             #[cfg(feature = "o_path")]
-            FdType::LiteDir => libc_ok(libc::dup(fd)),
+            FdType::OPathDir => libc_ok(libc::dup(fd)),
             _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
     }
@@ -593,7 +581,7 @@ fn clone_dirfd_downgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
 
 enum FdType {
     NormalDir,
-    LiteDir,
+    OPathDir,
     Other,
 }
 
@@ -604,7 +592,7 @@ fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
     let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
     if flags & libc::O_DIRECTORY != 0 {
         if flags & libc::O_PATH != 0 {
-            Ok(FdType::LiteDir)
+            Ok(FdType::OPathDir)
         } else {
             Ok(FdType::NormalDir)
         }
@@ -811,6 +799,20 @@ mod test {
 
     #[test]
     fn test_list() {
+        let dir = Dir::flags().open("src").unwrap();
+        let me = dir.list().unwrap();
+        assert!(me
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .iter()
+            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+            .is_some());
+    }
+
+    #[test]
+    #[cfg(feature = "o_path")]
+    #[should_panic(expected = "Bad file descriptor")]
+    fn test_list_opath_fail() {
         let dir = Dir::open("src").unwrap();
         let me = dir.list().unwrap();
         assert!(me
