@@ -7,6 +7,8 @@ use std::fs::Metadata;
 /// this simplified enum that works for many appalications.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SimpleType {
+    /// Entry is of unknown type
+    Unknown,
     /// Entry is a symlink
     Symlink,
     /// Entry is a directory

@@ -51,12 +51,14 @@ mod list;
 mod name;
 mod filetype;
 mod metadata;
+mod builder;
 
 pub use crate::list::DirIter;
 pub use crate::name::AsPath;
-pub use crate::dir::{rename, hardlink};
+pub use crate::dir::{hardlink, rename, O_DIRECTORY, O_PATH, O_SEARCH};
 pub use crate::filetype::SimpleType;
 pub use crate::metadata::Metadata;
+pub use crate::builder::{DirFlags, DirMethodFlags};
 
 use std::ffi::CString;
 use std::os::unix::io::RawFd;
@@ -73,6 +75,7 @@ pub struct Dir(RawFd);
 pub struct Entry {
     name: CString,
     file_type: Option<SimpleType>,
+    ino: libc::ino_t,
 }
 
 #[cfg(test)]

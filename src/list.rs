@@ -5,8 +5,7 @@ use std::os::unix::ffi::OsStrExt;
 
 use libc;
 
-use crate::{Dir, Entry, SimpleType};
-
+use crate::{Entry, SimpleType};
 
 // We have such weird constants because C types are ugly
 const DOT: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
@@ -36,6 +35,10 @@ impl Entry {
     /// Returns the simplified type of this entry
     pub fn simple_type(&self) -> Option<SimpleType> {
         self.file_type
+    }
+    /// Returns the inode number of this entry
+    pub fn inode(&self) -> libc::ino_t {
+        self.ino
     }
 }
 
@@ -104,17 +107,6 @@ pub fn open_dirfd(fd: libc::c_int) -> io::Result<DirIter> {
     }
 }
 
-pub fn open_dir(dir: &Dir, path: &CStr) -> io::Result<DirIter> {
-    let dir_fd = unsafe {
-        libc::openat(dir.0, path.as_ptr(), libc::O_DIRECTORY|libc::O_CLOEXEC)
-    };
-    if dir_fd < 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        open_dirfd(dir_fd)
-    }
-}
-
 impl Iterator for DirIter {
     type Item = io::Result<Entry>;
     fn next(&mut self) -> Option<Self::Item> {
@@ -136,6 +128,7 @@ impl Iterator for DirIter {
                                 libc::DT_LNK => Some(SimpleType::Symlink),
                                 _ => Some(SimpleType::Other),
                             },
+                            ino: e.d_ino,
                         }));
                     }
                 }

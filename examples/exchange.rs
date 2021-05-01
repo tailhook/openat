@@ -32,8 +32,10 @@ fn main() {
     }
     let parent = path1.parent().expect("path must have parent directory");
     let dir = Dir::open(parent).expect("can open directory");
+    #[cfg(feature = "rename_exchange")]
     dir.local_exchange(
         path1.file_name().expect("path1 must have filename"),
         path2.file_name().expect("path2 must have filename"),
-    ).expect("can rename");
+    )
+    .expect("can rename");
 }
