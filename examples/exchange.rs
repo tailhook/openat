@@ -1,5 +1,4 @@
-extern crate argparse;
-extern crate openat;
+use openat_ct as openat;
 
 use std::process::exit;
 use std::path::PathBuf;

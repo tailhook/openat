@@ -1,5 +1,4 @@
-extern crate tempfile;
-extern crate openat;
+use openat_ct as openat;
 
 use std::io::{self, Read, Write};
 use std::os::unix::fs::PermissionsExt;

@@ -1,4 +1,4 @@
-extern crate openat;
+use openat_ct as openat;
 use openat::{Dir};
 
 #[test]

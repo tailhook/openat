@@ -1,17 +1,18 @@
 [package]
-name = "openat"
+name = "openat_ct"
 description = """
     A wrapper around openat, symlinkat, and similar system calls
+    forked and improved from https://crates.io/crates/openat
 """
 license = "MIT/Apache-2.0"
 readme = "README.md"
 keywords = ["open", "openat", "filesystem", "fs"]
 categories = ["filesystem", "api-bindings"]
-repository = "https://github.com/tailhook/openat"
-homepage = "https://github.com/tailhook/openat"
-documentation = "http://docs.rs/openat"
+repository = "https://github.com/cehteh/openat"
+homepage = "https://github.com/cehteh/openat"
+documentation = "http://docs.rs/openat_ct"
 version = "0.1.21"
-authors = ["paul@colomiets.name"]
+authors = ["paul@colomiets.name, ct@pipapo.org"]
 edition = "2018"
 
 [features]
@@ -33,7 +34,7 @@ statx = []
 libc = "0.2.34"
 
 [build-dependencies]
-libc = "0.2.34"
+libc = "0.2.104"
 conf_test = "0.2"
 
 [dev-dependencies]
