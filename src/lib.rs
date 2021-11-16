@@ -73,9 +73,9 @@ pub struct Dir(RawFd);
 /// Entry returned by iterating over `DirIter` iterator
 #[derive(Debug)]
 pub struct Entry {
-    name: CString,
-    file_type: Option<SimpleType>,
-    ino: libc::ino_t,
+    pub name: CString,
+    pub file_type: Option<SimpleType>,
+    pub ino: libc::ino_t,
 }
 
 #[cfg(test)]
