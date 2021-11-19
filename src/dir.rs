@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString, OsString, OsStr };
 use std::os::unix::ffi::OsStrExt;
-use std::io;
+use std::io::{self, Error};
 use std::mem;
 use std::fs::{File, read_link};
 use std::os::unix::io::{AsRawFd, RawFd, FromRawFd, IntoRawFd};
@@ -483,26 +483,28 @@ impl Dir {
 
     /// Removes a directory with all its contents in a atomic way.  This is done by renaming
     /// the 'path' to some unique name first.  When tmp_dir is given as sub direcory of 'self'
-    /// the 'path' will be moved into that.
-    pub fn remove_recursive_atomic<P>(&self, path: P, tmp_dir: Option<P>)
+    /// on the same filesystem.  the 'path' will be moved into that. When tmp_dir is "" then
+    /// the rename is done in place.  The unique name is determined by changing the path
+    /// extension to an increasing number (.0 .1 .2 ... .65534) until the rename
+    /// succeeds. When renaming will not succeed this will eventually return an error.
+    pub fn remove_recursive_atomic<P, T>(&self, path: P, tmp_dir: T)
                                       -> io::Result<()>
     where
-        P: AsPath + Copy + std::convert::AsRef<std::path::Path>
+        P: AsPath + Copy + std::convert::AsRef<std::path::Path>,
+        T: AsPath + std::convert::AsRef<std::path::Path>
     {
-        let mut to_delete = if let Some(dest) = tmp_dir {
-            PathBuf::from(dest.as_ref())
-        } else {
-            PathBuf::new()
-        };
+        let mut to_delete = PathBuf::from(tmp_dir.as_ref());
         to_delete.push(path);
 
         for i in 0u16.. {
+            if i == u16::MAX {
+                return Err(io::Error::new(io::ErrorKind::Other, "Could not rename for remove"));
+            };
             to_delete.set_extension(i.to_string());
             if self.local_rename(path, &to_delete).is_ok() {
                 break;
             }
         }
-        //todo!() //
         self.remove_recursive(&to_delete)
     }
 
@@ -951,7 +953,7 @@ mod test {
         d.create_dir("removeatomictest/foo/bar", 0o777).unwrap();
         d.create_dir("removeatomictest/bar", 0o777).unwrap();
 
-        d.remove_recursive_atomic("removeatomictest", None).unwrap();
+        d.remove_recursive_atomic("removeatomictest", "").unwrap();
     }
 
     #[test]
@@ -964,7 +966,7 @@ mod test {
         d.create_dir("removeatomictmptest/foo/bar", 0o777).unwrap();
         d.create_dir("removeatomictmptest/bar", 0o777).unwrap();
 
-        d.remove_recursive_atomic("removeatomictmptest", Some("removeatomictmp")).unwrap();
+        d.remove_recursive_atomic("removeatomictmptest", "removeatomictmp").unwrap();
         d.remove_dir("removeatomictmp").unwrap();
     }
 }

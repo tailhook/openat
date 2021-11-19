@@ -13,7 +13,7 @@ categories = ["filesystem", "api-bindings"]
 repository = "https://github.com/cehteh/openat"
 homepage = "https://github.com/cehteh/openat"
 documentation = "http://docs.rs/openat_ct"
-version = "0.2.0-pre1"
+version = "0.2.0-pre2"
 authors = ["paul@colomiets.name, ct@pipapo.org"]
 edition = "2021"
 
