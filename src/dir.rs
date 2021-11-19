@@ -1,17 +1,18 @@
+use std::ffi::{CStr, CString, OsString, OsStr };
+use std::os::unix::ffi::OsStrExt;
 use std::io;
 use std::mem;
-use std::ffi::{OsString, CStr};
 use std::fs::{File, read_link};
 use std::os::unix::io::{AsRawFd, RawFd, FromRawFd, IntoRawFd};
 use std::os::unix::ffi::{OsStringExt};
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
 
 use libc;
 use crate::list::{open_dirfd, DirIter};
 use crate::metadata::{self, Metadata};
+use crate::Entry;
 
-use crate::{Dir, AsPath, DirFlags, DirMethodFlags};
-
+use crate::{AsPath, Dir, DirFlags, DirMethodFlags, SimpleType};
 
 /// Value if the libc::O_DIRECTORY flag when supported by the system, otherwise 0
 #[cfg(feature = "o_directory")]
@@ -463,6 +464,49 @@ impl Dir {
         Ok(())
     }
 
+    /// Removes a directory with all its contents
+    pub fn remove_recursive<P: AsPath + Copy>(&self, path: P) -> io::Result<()> {
+        self.list_dir(path)?.try_for_each(|entry| -> io::Result<()> {
+            match entry {
+                Ok(entry) if entry.simple_type() == Some(SimpleType::Dir) => {
+                    self.sub_dir(path)?
+                        .remove_recursive(entry.file_name())
+                }
+                Ok(entry) => {
+                    self.remove_file(entry.file_name())
+                }
+                Err(err) =>  Err(err)
+            }
+        })?;
+        self.remove_dir(path)
+    }
+
+    /// Removes a directory with all its contents in a atomic way.  This is done by renaming
+    /// the 'path' to some unique name first.  When tmp_dir is given as sub direcory of 'self'
+    /// the 'path' will be moved into that.
+    pub fn remove_recursive_atomic<P>(&self, path: P, tmp_dir: Option<P>)
+                                      -> io::Result<()>
+    where
+        P: AsPath + Copy + std::convert::AsRef<std::path::Path>
+    {
+        let mut to_delete = if let Some(dest) = tmp_dir {
+            PathBuf::from(dest.as_ref())
+        } else {
+            PathBuf::new()
+        };
+        to_delete.push(path);
+
+        for i in 0u16.. {
+            to_delete.set_extension(i.to_string());
+            if self.local_rename(path, &to_delete).is_ok() {
+                break;
+            }
+        }
+        //todo!() //
+        self.remove_recursive(&to_delete)
+    }
+
+
     /// Get the path of this directory (if possible)
     ///
     /// This uses symlinks in `/proc/self`, they sometimes may not be
@@ -884,5 +928,43 @@ mod test {
         let d2 = d.try_clone().unwrap();
         drop(d);
         let _file = d2.open_file("src/lib.rs").unwrap();
+    }
+
+    #[test]
+    fn test_remove_recursive() {
+        let d = Dir::open(".").unwrap();
+
+        d.create_dir("removetest", 0o777).unwrap();
+        d.create_dir("removetest/foo", 0o777).unwrap();
+        d.create_dir("removetest/foo/bar", 0o777).unwrap();
+        d.create_dir("removetest/bar", 0o777).unwrap();
+
+        d.remove_recursive("removetest").unwrap();
+    }
+
+    #[test]
+    fn test_remove_recursive_atomic_notmp() {
+        let d = Dir::open(".").unwrap();
+
+        d.create_dir("removeatomictest", 0o777).unwrap();
+        d.create_dir("removeatomictest/foo", 0o777).unwrap();
+        d.create_dir("removeatomictest/foo/bar", 0o777).unwrap();
+        d.create_dir("removeatomictest/bar", 0o777).unwrap();
+
+        d.remove_recursive_atomic("removeatomictest", None).unwrap();
+    }
+
+    #[test]
+    fn test_remove_recursive_atomic_tmp() {
+        let d = Dir::open(".").unwrap();
+
+        d.create_dir("removeatomictmp", 0o777).unwrap();
+        d.create_dir("removeatomictmptest", 0o777).unwrap();
+        d.create_dir("removeatomictmptest/foo", 0o777).unwrap();
+        d.create_dir("removeatomictmptest/foo/bar", 0o777).unwrap();
+        d.create_dir("removeatomictmptest/bar", 0o777).unwrap();
+
+        d.remove_recursive_atomic("removeatomictmptest", Some("removeatomictmp")).unwrap();
+        d.remove_dir("removeatomictmp").unwrap();
     }
 }
