@@ -494,18 +494,21 @@ impl Dir {
         T: AsPath + std::convert::AsRef<std::path::Path>
     {
         let mut to_delete = PathBuf::from(tmp_dir.as_ref());
-        to_delete.push(path);
+        if to_delete.as_os_str().is_empty() {
+            // In place, full name
+            to_delete.push(path);
+        } else {
+            // use the tmp_dir and the file_name part
+            to_delete.push(Path::new(path.as_ref()).file_name().unwrap());
+        }
 
-        for i in 0u16.. {
-            if i == u16::MAX {
-                return Err(io::Error::new(io::ErrorKind::Other, "Could not rename for remove"));
-            };
+        for i in 0u16..u16::MAX {
             to_delete.set_extension(i.to_string());
             if self.local_rename(path, &to_delete).is_ok() {
-                break;
+                return self.remove_recursive(&to_delete);
             }
         }
-        self.remove_recursive(&to_delete)
+        Err(io::Error::new(io::ErrorKind::Other, "Could not rename for remove"))
     }
 
 
@@ -936,37 +939,39 @@ mod test {
     fn test_remove_recursive() {
         let d = Dir::open(".").unwrap();
 
-        d.create_dir("removetest", 0o777).unwrap();
-        d.create_dir("removetest/foo", 0o777).unwrap();
-        d.create_dir("removetest/foo/bar", 0o777).unwrap();
-        d.create_dir("removetest/bar", 0o777).unwrap();
+        d.create_dir("test_remove", 0o777).unwrap();
+        d.create_dir("test_remove/foo", 0o777).unwrap();
+        d.create_dir("test_remove/foo/bar", 0o777).unwrap();
+        d.create_dir("test_remove/bar", 0o777).unwrap();
 
-        d.remove_recursive("removetest").unwrap();
+        d.remove_recursive("test_remove").unwrap();
     }
 
     #[test]
     fn test_remove_recursive_atomic_notmp() {
         let d = Dir::open(".").unwrap();
 
-        d.create_dir("removeatomictest", 0o777).unwrap();
-        d.create_dir("removeatomictest/foo", 0o777).unwrap();
-        d.create_dir("removeatomictest/foo/bar", 0o777).unwrap();
-        d.create_dir("removeatomictest/bar", 0o777).unwrap();
+        d.create_dir("test_removeatomic", 0o777).unwrap();
+        d.create_dir("test_removeatomic/foo", 0o777).unwrap();
+        d.create_dir("test_removeatomic/foo/bar", 0o777).unwrap();
+        d.create_dir("test_removeatomic/bar", 0o777).unwrap();
 
-        d.remove_recursive_atomic("removeatomictest", "").unwrap();
+        d.remove_recursive_atomic("test_removeatomic/foo", "").unwrap();
+        d.remove_recursive_atomic("test_removeatomic", "").unwrap();
     }
 
     #[test]
     fn test_remove_recursive_atomic_tmp() {
         let d = Dir::open(".").unwrap();
 
-        d.create_dir("removeatomictmp", 0o777).unwrap();
-        d.create_dir("removeatomictmptest", 0o777).unwrap();
-        d.create_dir("removeatomictmptest/foo", 0o777).unwrap();
-        d.create_dir("removeatomictmptest/foo/bar", 0o777).unwrap();
-        d.create_dir("removeatomictmptest/bar", 0o777).unwrap();
+        d.create_dir("test_removetmp", 0o777).unwrap();
+        d.create_dir("test_removeatomictmp", 0o777).unwrap();
+        d.create_dir("test_removeatomictmp/foo", 0o777).unwrap();
+        d.create_dir("test_removeatomictmp/foo/bar", 0o777).unwrap();
+        d.create_dir("test_removeatomictmp/bar", 0o777).unwrap();
 
-        d.remove_recursive_atomic("removeatomictmptest", "removeatomictmp").unwrap();
-        d.remove_dir("removeatomictmp").unwrap();
+        d.remove_recursive_atomic("test_removeatomictmp/foo", "test_removetmp").unwrap();
+        d.remove_recursive_atomic("test_removeatomictmp", "test_removetmp").unwrap();
+        d.remove_dir("test_removetmp").unwrap();
     }
 }
