@@ -1,5 +1,3 @@
-cargo-features = ["edition2021"]
-
 [package]
 name = "openat_ct"
 description = """
@@ -13,7 +11,7 @@ categories = ["filesystem", "api-bindings"]
 repository = "https://github.com/cehteh/openat"
 homepage = "https://github.com/cehteh/openat"
 documentation = "http://docs.rs/openat_ct"
-version = "0.2.0-pre3"
+version = "0.2.0-pre4"
 authors = ["paul@colomiets.name, ct@pipapo.org"]
 edition = "2021"
 
