@@ -57,7 +57,7 @@ pub use crate::list::DirIter;
 pub use crate::name::AsPath;
 pub use crate::dir::{hardlink, rename, O_DIRECTORY, O_PATH, O_SEARCH};
 pub use crate::filetype::SimpleType;
-pub use crate::metadata::Metadata;
+pub use crate::metadata::{Metadata, metadata_types};
 pub use crate::builder::{DirFlags, DirMethodFlags};
 
 use std::ffi::CString;
