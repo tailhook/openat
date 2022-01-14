@@ -1,5 +1,6 @@
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
+use std::fmt;
 
 use libc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -13,6 +14,21 @@ use crate::SimpleType;
 /// implement our own structure.
 pub struct Metadata {
     stat: libc::stat,
+}
+
+impl fmt::Debug for Metadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Metadata")
+         .field("st_dev", &self.stat.st_dev)
+         .field("st_ino", &self.stat.st_ino)
+         .field("st_nlink", &self.stat.st_nlink)
+         .field("st_mode", &self.stat.st_mode)
+         .field("st_uid", &self.stat.st_uid)
+         .field("st_gid", &self.stat.st_gid)
+         .field("st_size", &self.stat.st_size)
+         .field("st_blocks", &self.stat.st_blocks)
+         .finish()
+    }
 }
 
 /// Implements and exports the used types here. Depending on feature flags and operating
