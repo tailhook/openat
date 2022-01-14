@@ -682,7 +682,7 @@ fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
 }
 
 #[inline]
-fn libc_ok(ret: libc::c_int) -> io::Result<libc::c_int> {
+pub(crate) fn libc_ok(ret: libc::c_int) -> io::Result<libc::c_int> {
     if ret != -1 {
         Ok(ret)
     } else {

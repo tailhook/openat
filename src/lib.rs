@@ -62,6 +62,7 @@ pub use crate::builder::{DirFlags, DirMethodFlags};
 
 use std::ffi::CString;
 use std::os::unix::io::RawFd;
+use std::sync::Arc;
 
 /// A safe wrapper around directory file descriptor
 ///
@@ -73,6 +74,7 @@ pub struct Dir(RawFd);
 /// Entry returned by iterating over `DirIter` iterator
 #[derive(Debug)]
 pub struct Entry {
+    parent: Arc<*mut libc::DIR>,
     pub name: CString,
     pub file_type: Option<SimpleType>,
     pub ino: libc::ino_t,
