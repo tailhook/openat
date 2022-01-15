@@ -182,3 +182,20 @@ impl Drop for DirIter {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::Dir;
+
+    #[test]
+    fn test() {
+        let d = Dir::open(".").unwrap();
+        for e in d.list_self().unwrap() {
+            if let Ok(e) = e {
+                if let Ok(m) = e.metadata() {
+                    eprintln!("{:?} : {:?}", e.file_name(), m);
+                }
+            }
+        }
+    }
+}
