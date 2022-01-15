@@ -8,9 +8,8 @@ use std::os::unix::ffi::{OsStringExt};
 use std::path::{Path, PathBuf};
 
 use libc;
-use crate::list::{open_dirfd, DirIter};
+use crate::list::{open_dirfd, DirIter, Entry};
 use crate::metadata::{self, Metadata};
-use crate::Entry;
 
 use crate::{AsPath, Dir, DirFlags, DirMethodFlags, SimpleType};
 

@@ -60,7 +60,6 @@ pub use crate::filetype::SimpleType;
 pub use crate::metadata::{Metadata, metadata_types};
 pub use crate::builder::{DirFlags, DirMethodFlags};
 
-use std::ffi::CString;
 use std::os::unix::io::RawFd;
 use std::sync::Arc;
 
@@ -70,15 +69,6 @@ use std::sync::Arc;
 ///
 #[derive(Debug)]
 pub struct Dir(RawFd);
-
-/// Entry returned by iterating over `DirIter` iterator
-#[derive(Debug)]
-pub struct Entry {
-    parent: Arc<*mut libc::DIR>,
-    pub name: CString,
-    pub file_type: Option<SimpleType>,
-    pub ino: libc::ino_t,
-}
 
 #[cfg(test)]
 mod test {

@@ -1,13 +1,13 @@
 use std::io;
 use std::ptr;
-use std::ffi::{CStr, OsStr};
+use std::ffi::{CStr, OsStr, CString};
 use std::mem;
 use std::os::unix::ffi::OsStrExt;
 use std::sync::Arc;
 
 use libc;
 
-use crate::{dir::libc_ok, metadata, Entry, Metadata, SimpleType};
+use crate::{dir::libc_ok, metadata, Metadata, SimpleType};
 
 // We have such weird constants because C types are ugly
 const DOT: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
@@ -40,6 +40,15 @@ unsafe impl Send for DirIter {}
 /// The position is only valid for the DirIter it was retrieved from.
 pub struct DirPosition {
     pos: libc::c_long,
+}
+
+/// Entry returned by iterating over `DirIter` iterator
+#[derive(Debug)]
+pub struct Entry {
+    parent: Arc<*mut libc::DIR>,
+    pub name: CString,
+    pub file_type: Option<SimpleType>,
+    pub ino: libc::ino_t,
 }
 
 impl Entry {
