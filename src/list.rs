@@ -177,8 +177,10 @@ impl Iterator for DirIter {
 
 impl Drop for DirIter {
     fn drop(&mut self) {
-        unsafe {
-            libc::closedir(*self.dir);
+        if Arc::strong_count(&self.dir) == 1 {
+            unsafe {
+                libc::closedir(*self.dir);
+            }
         }
     }
 }
