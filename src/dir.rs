@@ -38,6 +38,7 @@ pub const O_SEARCH: libc::c_int = 0;
 ///
 /// Construct it either with ``Dir::cwd()`` or ``Dir::open(path)``
 ///
+//PLANNED: make RawFd atomic add getter (allows close being non mut)
 #[derive(Debug)]
 pub struct Dir(pub(crate) RawFd);
 
@@ -587,6 +588,19 @@ impl Dir {
     pub fn clone_downgrade(&self) -> io::Result<Self> {
         Ok(Dir(clone_dirfd_downgrade(self.0)?))
     }
+
+    /// Explicit closing of a file handle. The object stays alive but all operations on it will fail.
+    pub fn close(&mut self) {
+        let fd = self.0;
+        if fd != libc::AT_FDCWD {
+            if fd != -1 {
+                self.0 = -1;
+                unsafe {
+                    libc::close(fd);
+                }
+            }
+        }
+    }
 }
 
 const CURRENT_DIRECTORY: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
@@ -806,12 +820,7 @@ impl IntoRawFd for Dir {
 
 impl Drop for Dir {
     fn drop(&mut self) {
-        let fd = self.0;
-        if fd != libc::AT_FDCWD {
-            unsafe {
-                libc::close(fd);
-            }
-        }
+        self.close();
     }
 }
 
