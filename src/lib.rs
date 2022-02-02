@@ -53,9 +53,9 @@ mod filetype;
 mod metadata;
 mod builder;
 
+pub use crate::dir::{hardlink, rename, Dir, O_DIRECTORY, O_PATH, O_SEARCH};
 pub use crate::list::DirIter;
 pub use crate::name::AsPath;
-pub use crate::dir::{hardlink, rename, O_DIRECTORY, O_PATH, O_SEARCH};
 pub use crate::filetype::SimpleType;
 pub use crate::metadata::{Metadata, metadata_types};
 pub use crate::builder::{DirFlags, DirMethodFlags};
@@ -71,7 +71,7 @@ mod test {
 
     #[test]
     fn test() {
-        let d = Dir(3);
+        let d = Dir::new(3);
         let d = assert_sync(d);
         let d = assert_send(d);
         // don't execute close for our fake RawFd

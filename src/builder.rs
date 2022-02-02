@@ -150,6 +150,9 @@ impl<'a> DirMethodFlags<'a> {
 
     /// Creates a new 'Normal' independently owned handle to the underlying directory.
     pub fn clone_upgrade(&self) -> io::Result<Dir> {
-        Ok(Dir(clone_dirfd_upgrade(self.object.0, self.flags)?))
+        Ok(Dir::new(clone_dirfd_upgrade(
+            self.object.rawfd()?,
+            self.flags,
+        )?))
     }
 }

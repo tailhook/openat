@@ -6,6 +6,7 @@ use std::fs::{File, read_link};
 use std::os::unix::io::{AsRawFd, RawFd, FromRawFd, IntoRawFd};
 use std::os::unix::ffi::{OsStringExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicI16, AtomicI32, AtomicI64, Ordering};
 
 use libc;
 use crate::list::{open_dirfd, DirIter, Entry};
@@ -38,11 +39,25 @@ pub const O_SEARCH: libc::c_int = 0;
 ///
 /// Construct it either with ``Dir::cwd()`` or ``Dir::open(path)``
 ///
-//PLANNED: make RawFd atomic add getter (allows close being non mut)
 #[derive(Debug)]
-pub struct Dir(pub(crate) RawFd);
+pub struct Dir(AtomicRawFd);
 
 impl Dir {
+    /// low level ctor, only used by builder and tests
+    pub(crate) fn new(fd: RawFd) -> Self {
+        Dir(AtomicRawFd::new(fd))
+    }
+
+    /// Gets the underlying RawFd from a Dir handle.
+    pub(crate) fn rawfd(&self) -> io::Result<RawFd> {
+        let rawfd = self.0.load(Ordering::Acquire);
+        if rawfd != -1 {
+            Ok(rawfd)
+        } else {
+            Err(io::Error::from_raw_os_error(libc::EBADF))
+        }
+    }
+
     /// Creates a directory descriptor that resolves paths relative to current
     /// working directory (AT_FDCWD)
     #[deprecated(since="0.1.15", note="\
@@ -53,7 +68,7 @@ impl Dir {
         file descriptor when using `Dir::as_raw_fd`. \
         Will be removed in version v0.2 of the library.")]
     pub fn cwd() -> Dir {
-        Dir(libc::AT_FDCWD)
+        Dir::new(libc::AT_FDCWD)
     }
 
     /// Create a flags builder for Dir objects.  Initial flags default to `O_CLOEXEC'. More
@@ -80,7 +95,7 @@ impl Dir {
 
     pub(crate) fn _open(path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
         let fd = unsafe { libc_ok(libc::open(path.as_ptr(), O_DIRECTORY | flags))? };
-        Ok(Dir(fd))
+        Ok(Dir::new(fd))
     }
 
     /// Checks if the fd associated with the Dir object is really a directory.
@@ -94,7 +109,7 @@ impl Dir {
     /// explicitly. Thats what 'is_dir()' is for. Returns 'true' when the underlying handles
     /// represents a directory and false otherwise.
     pub fn is_dir(&self) -> bool {
-        match fd_type(self.0).unwrap_or(FdType::Other) {
+        match fd_type(self.0.load(Ordering::Acquire)).unwrap_or(FdType::Other) {
             FdType::NormalDir | FdType::OPathDir => true,
             FdType::Other => false,
         }
@@ -115,7 +130,7 @@ impl Dir {
     /// Create a DirIter from a Dir
     /// Dir must not be a handle opened with O_PATH.
     pub fn list(self) -> io::Result<DirIter> {
-        let fd = self.0;
+        let fd = self.rawfd()?;
         std::mem::forget(self);
         open_dirfd(fd)
     }
@@ -159,8 +174,12 @@ impl Dir {
     }
 
     pub(crate) fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
-        Ok(Dir(unsafe {
-            libc_ok(libc::openat(self.0, path.as_ptr(), flags | O_DIRECTORY))?
+        Ok(Dir::new(unsafe {
+            libc_ok(libc::openat(
+                self.rawfd()?,
+                path.as_ptr(),
+                flags | O_DIRECTORY,
+            ))?
         }))
     }
 
@@ -172,9 +191,12 @@ impl Dir {
     fn _read_link(&self, path: &CStr) -> io::Result<PathBuf> {
         let mut buf = vec![0u8; 4096];
         let res = unsafe {
-            libc::readlinkat(self.0,
-                        path.as_ptr(),
-                        buf.as_mut_ptr() as *mut libc::c_char, buf.len())
+            libc::readlinkat(
+                self.rawfd()?,
+                path.as_ptr(),
+                buf.as_mut_ptr() as *mut libc::c_char,
+                buf.len(),
+            )
         };
         if res < 0 {
             Err(io::Error::last_os_error())
@@ -320,9 +342,13 @@ impl Dir {
         -> io::Result<()>
     {
         let fd_path = format!("/proc/self/fd/{}", file.as_raw_fd());
-        _hardlink(&Dir(libc::AT_FDCWD), to_cstr(fd_path)?.as_ref(),
-            &self, to_cstr(path)?.as_ref(),
-            libc::AT_SYMLINK_FOLLOW)
+        _hardlink(
+            &Dir::new(libc::AT_FDCWD),
+            to_cstr(fd_path)?.as_ref(),
+            &self,
+            to_cstr(path)?.as_ref(),
+            libc::AT_SYMLINK_FOLLOW,
+        )
     }
 
     /// Link open file to a specified path
@@ -384,11 +410,12 @@ impl Dir {
             // variadic in the signature. Since integers are not implicitly
             // promoted as they are in C this would break on Freebsd where
             // *mode_t* is an alias for `uint16_t`.
-            let res = libc_ok(
-                libc::openat(self.0, path.as_ptr(),
-                             flags|libc::O_CLOEXEC|libc::O_NOFOLLOW,
-                             mode as libc::c_uint)
-            )?;
+            let res = libc_ok(libc::openat(
+                self.rawfd()?,
+                path.as_ptr(),
+                flags | libc::O_CLOEXEC | libc::O_NOFOLLOW,
+                mode as libc::c_uint,
+            ))?;
             Ok(File::from_raw_fd(res))
         }
     }
@@ -403,8 +430,7 @@ impl Dir {
     }
     fn _symlink(&self, path: &CStr, link: &CStr) -> io::Result<()> {
         unsafe {
-            let res = libc::symlinkat(link.as_ptr(),
-                self.0, path.as_ptr());
+            let res = libc::symlinkat(link.as_ptr(), self.rawfd()?, path.as_ptr());
             if res < 0 {
                 Err(io::Error::last_os_error())
             } else {
@@ -421,7 +447,7 @@ impl Dir {
     }
     fn _create_dir(&self, path: &CStr, mode: libc::mode_t) -> io::Result<()> {
         unsafe {
-            libc_ok(libc::mkdirat(self.0, path.as_ptr(), mode))?;
+            libc_ok(libc::mkdirat(self.rawfd()?, path.as_ptr(), mode))?;
         }
         Ok(())
     }
@@ -466,7 +492,7 @@ impl Dir {
     }
     fn _unlink(&self, path: &CStr, flags: libc::c_int) -> io::Result<()> {
         unsafe {
-            libc_ok(libc::unlinkat(self.0, path.as_ptr(), flags))?;
+            libc_ok(libc::unlinkat(self.rawfd()?, path.as_ptr(), flags))?;
         }
         Ok(())
     }
@@ -525,7 +551,7 @@ impl Dir {
     /// available so use with care.
     #[cfg(feature = "proc_self_fd")]
     pub fn recover_path(&self) -> io::Result<PathBuf> {
-        let fd = self.0;
+        let fd = self.rawfd()?;
         if fd != libc::AT_FDCWD {
             read_link(format!("/proc/self/fd/{}", fd))
         } else {
@@ -546,7 +572,12 @@ impl Dir {
     fn _stat(&self, path: &CStr, flags: libc::c_int) -> io::Result<Metadata> {
         unsafe {
             let mut stat = mem::zeroed(); // TODO(cehteh): uninit
-            libc_ok(libc::fstatat(self.0, path.as_ptr(), &mut stat, flags))?;
+            libc_ok(libc::fstatat(
+                self.rawfd()?,
+                path.as_ptr(),
+                &mut stat,
+                flags,
+            ))?;
             Ok(metadata::new(stat))
         }
     }
@@ -555,7 +586,7 @@ impl Dir {
     pub fn self_metadata(&self) -> io::Result<Metadata> {
         unsafe {
             let mut stat = mem::zeroed(); // TODO(cehteh): uninit
-            libc_ok(libc::fstat(self.0, &mut stat))?;
+            libc_ok(libc::fstat(self.rawfd()?, &mut stat))?;
             Ok(metadata::new(stat))
         }
     }
@@ -568,7 +599,7 @@ impl Dir {
     /// closing it when it goes out of scope.
     pub unsafe fn from_raw_fd_checked(fd: RawFd) -> io::Result<Self> {
         match fd_type(fd)? {
-            FdType::NormalDir | FdType::OPathDir => Ok(Dir(fd)),
+            FdType::NormalDir | FdType::OPathDir => Ok(Dir::new(fd)),
             FdType::Other => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
     }
@@ -576,25 +607,24 @@ impl Dir {
     /// Creates a new independently owned handle to the underlying directory.
     /// The new handle has the same (Normal/O_PATH) semantics as the original handle.
     pub fn try_clone(&self) -> io::Result<Self> {
-        Ok(Dir(clone_dirfd(self.0)?))
+        Ok(Dir::new(clone_dirfd(self.rawfd()?)?))
     }
 
     /// Creates a new 'Normal' independently owned handle to the underlying directory.
     pub fn clone_upgrade(&self) -> io::Result<Self> {
-        Ok(Dir(clone_dirfd_upgrade(self.0, 0)?))
+        Ok(Dir::new(clone_dirfd_upgrade(self.rawfd()?, 0)?))
     }
 
     /// Creates a new 'O_PATH' restricted independently owned handle to the underlying directory.
     pub fn clone_downgrade(&self) -> io::Result<Self> {
-        Ok(Dir(clone_dirfd_downgrade(self.0)?))
+        Ok(Dir::new(clone_dirfd_downgrade(self.rawfd()?)?))
     }
 
     /// Explicit closing of a file handle. The object stays alive but all operations on it will fail.
-    pub fn close(&mut self) {
-        let fd = self.0;
+    pub fn close(&self) {
+        let fd = self.0.swap(-1, Ordering::AcqRel);
         if fd != libc::AT_FDCWD {
             if fd != -1 {
-                self.0 = -1;
                 unsafe {
                     libc::close(fd);
                 }
@@ -665,39 +695,51 @@ enum FdType {
 // OSes with fcntl() that returns O_DIRECTORY
 // Linux has O_PATH
 #[cfg(all(feature = "o_path", feature = "fcntl_o_directory"))]
-fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
-    let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
-    if flags & libc::O_DIRECTORY != 0 {
-        if flags & libc::O_PATH != 0 {
-            Ok(FdType::OPathDir)
+fn fd_type(fd: RawFd) -> io::Result<FdType> {
+    if fd != -1 {
+        let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
+        if flags & libc::O_DIRECTORY != 0 {
+            if flags & libc::O_PATH != 0 {
+                Ok(FdType::OPathDir)
+            } else {
+                Ok(FdType::NormalDir)
+            }
         } else {
-            Ok(FdType::NormalDir)
+            Ok(FdType::Other)
         }
     } else {
-        Ok(FdType::Other)
+        Err(io::Error::from_raw_os_error(libc::EBADF))
     }
 }
 
 #[cfg(all(not(feature = "o_path"), feature = "fcntl_o_directory"))]
-fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
-    let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
-    if flags & libc::O_DIRECTORY != 0 {
-        Ok(FdType::NormalDir)
+fn fd_type(fd: RawFd) -> io::Result<FdType> {
+    if fd != -1 {
+        let flags = unsafe { libc_ok(libc::fcntl(fd, libc::F_GETFL))? };
+        if flags & libc::O_DIRECTORY != 0 {
+            Ok(FdType::NormalDir)
+        } else {
+            Ok(FdType::Other)
+        }
     } else {
-        Ok(FdType::Other)
+        Err(io::Error::from_raw_os_error(libc::EBADF))
     }
 }
 
 // OSes where fcntl won't return O_DIRECTORY use stat()
 #[cfg(not(feature = "fcntl_o_directory"))]
-fn fd_type(fd: libc::c_int) -> io::Result<FdType> {
-    unsafe {
-        let mut stat = mem::zeroed(); // TODO(cehteh): uninit
-        libc_ok(libc::fstat(fd, &mut stat))?;
-        match stat.st_mode & libc::S_IFMT {
-            libc::S_IFDIR => Ok(FdType::NormalDir),
-            _ => Ok(FdType::Other),
+fn fd_type(fd: RawFd) -> io::Result<FdType> {
+    if fd != -1 {
+        unsafe {
+            let mut stat = mem::zeroed(); // TODO(cehteh): uninit
+            libc_ok(libc::fstat(fd, &mut stat))?;
+            match stat.st_mode & libc::S_IFMT {
+                libc::S_IFDIR => Ok(FdType::NormalDir),
+                _ => Ok(FdType::Other),
+            }
         }
+    } else {
+        Err(io::Error::from_raw_os_error(libc::EBADF))
     }
 }
 
@@ -718,12 +760,22 @@ pub fn rename<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R)
     -> io::Result<()>
     where P: AsPath, R: AsPath,
 {
-    _rename(old_dir, to_cstr(old)?.as_ref(), new_dir, to_cstr(new)?.as_ref())
+    _rename(
+        old_dir,
+        to_cstr(old)?.as_ref(),
+        new_dir,
+        to_cstr(new)?.as_ref(),
+    )
 }
 
 fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr) -> io::Result<()> {
     unsafe {
-        libc_ok(libc::renameat(old_dir.0, old.as_ptr(), new_dir.0, new.as_ptr()))?;
+        libc_ok(libc::renameat(
+            old_dir.rawfd()?,
+            old.as_ptr(),
+            new_dir.rawfd()?,
+            new.as_ptr(),
+        ))?;
     }
     Ok(())
 }
@@ -740,9 +792,13 @@ pub fn hardlink<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R)
     -> io::Result<()>
     where P: AsPath, R: AsPath,
 {
-    _hardlink(old_dir, to_cstr(old)?.as_ref(),
-              new_dir, to_cstr(new)?.as_ref(),
-              0)
+    _hardlink(
+        old_dir,
+        to_cstr(old)?.as_ref(),
+        new_dir,
+        to_cstr(new)?.as_ref(),
+        0,
+    )
 }
 
 fn _hardlink(
@@ -753,7 +809,13 @@ fn _hardlink(
     flags: libc::c_int,
 ) -> io::Result<()> {
     unsafe {
-        libc_ok(libc::linkat(old_dir.0, old.as_ptr(), new_dir.0, new.as_ptr(), flags))?;
+        libc_ok(libc::linkat(
+            old_dir.rawfd()?,
+            old.as_ptr(),
+            new_dir.rawfd()?,
+            new.as_ptr(),
+            flags,
+        ))?;
     }
     Ok(())
 }
@@ -770,9 +832,13 @@ pub fn rename_flags<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R,
     -> io::Result<()>
     where P: AsPath, R: AsPath,
 {
-    _rename_flags(old_dir, to_cstr(old)?.as_ref(),
-        new_dir, to_cstr(new)?.as_ref(),
-        flags)
+    _rename_flags(
+        old_dir,
+        to_cstr(old)?.as_ref(),
+        new_dir,
+        to_cstr(new)?.as_ref(),
+        flags,
+    )
 }
 
 #[cfg(feature = "renameat_flags")]
@@ -783,8 +849,12 @@ fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
     unsafe {
         let res = libc::syscall(
             libc::SYS_renameat2,
-            old_dir.0, old.as_ptr(),
-            new_dir.0, new.as_ptr(), flags);
+            old_dir.rawfd()?,
+            old.as_ptr(),
+            new_dir.rawfd()?,
+            new.as_ptr(),
+            flags,
+        );
         if res < 0 {
             Err(io::Error::last_os_error())
         } else {
@@ -796,7 +866,7 @@ fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
 impl AsRawFd for Dir {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
-        self.0
+        self.0.load(Ordering::Acquire)
     }
 }
 
@@ -805,14 +875,14 @@ impl FromRawFd for Dir {
     /// a directory file descriptor.
     #[inline]
     unsafe fn from_raw_fd(fd: RawFd) -> Dir {
-        Dir(fd)
+        Dir::new(fd)
     }
 }
 
 impl IntoRawFd for Dir {
     #[inline]
     fn into_raw_fd(self) -> RawFd {
-        let result = self.0;
+        let result = self.0.load(Ordering::Acquire);
         mem::forget(self);
         return result;
     }
@@ -826,11 +896,28 @@ impl Drop for Dir {
 
 pub(crate) fn to_cstr<P: AsPath>(path: P) -> io::Result<P::Buffer> {
     path.to_path()
-    .ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput,
-                       "nul byte in file name")
-    })
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "nul byte in file name"))
 }
+
+// For the esoteric platforms where c_int is not i32,
+// make the RawFd/c_int atomic in a portable way
+trait Atomic {
+    type T;
+}
+
+impl Atomic for i16 {
+    type T = AtomicI16;
+}
+
+impl Atomic for i32 {
+    type T = AtomicI32;
+}
+
+impl Atomic for i64 {
+    type T = AtomicI64;
+}
+
+type AtomicRawFd = <RawFd as Atomic>::T;
 
 #[cfg(test)]
 mod test {
