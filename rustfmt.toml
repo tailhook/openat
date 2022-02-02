@@ -1,0 +1,17 @@
+version = "Two"
+#max_width = 120
+#comment_width = 120
+enum_discrim_align_threshold = 40
+struct_field_align_threshold = 40
+
+#license_template_path
+format_macro_matchers = true
+normalize_comments = true
+overflow_delimited_expr = true
+reorder_impl_items = true
+reorder_imports = false
+group_imports = "StdExternalCrate"
+use_field_init_shorthand = true
+
+use_try_shorthand = true
+normalize_doc_attributes = true

@@ -41,33 +41,36 @@
 //! Also while all methods of dir accept any path if you want to prevent
 //! certain symlink attacks and race condition you should only use
 //! a single-component path. I.e. open one part of a chain at a time.
-//!
 #![warn(missing_docs)]
 
 extern crate libc;
 
-mod dir;
-mod list;
-mod name;
-mod filetype;
-mod metadata;
 mod builder;
+mod dir;
+mod filetype;
+mod list;
+mod metadata;
+mod name;
 
-pub use crate::dir::{hardlink, rename, Dir, O_DIRECTORY, O_PATH, O_SEARCH};
-pub use crate::list::DirIter;
-pub use crate::name::AsPath;
-pub use crate::filetype::SimpleType;
-pub use crate::metadata::{Metadata, metadata_types};
 pub use crate::builder::{DirFlags, DirMethodFlags};
-
+pub use crate::dir::{hardlink, rename, Dir, O_DIRECTORY, O_PATH, O_SEARCH};
+pub use crate::filetype::SimpleType;
+pub use crate::list::DirIter;
+pub use crate::metadata::{metadata_types, Metadata};
+pub use crate::name::AsPath;
 
 #[cfg(test)]
 mod test {
     use std::mem;
+
     use super::Dir;
 
-    fn assert_sync<T: Sync>(x: T) -> T { x }
-    fn assert_send<T: Send>(x: T) -> T { x }
+    fn assert_sync<T: Sync>(x: T) -> T {
+        x
+    }
+    fn assert_send<T: Send>(x: T) -> T {
+        x
+    }
 
     #[test]
     fn test() {
@@ -78,4 +81,3 @@ mod test {
         mem::forget(d);
     }
 }
-

@@ -1,17 +1,17 @@
-use std::ffi::{CStr, CString, OsString, OsStr };
-use std::os::unix::ffi::OsStrExt;
+use std::ffi::{CStr, CString, OsStr, OsString};
+use std::fs::{read_link, File};
 use std::io::{self, Error};
 use std::mem;
-use std::fs::{File, read_link};
-use std::os::unix::io::{AsRawFd, RawFd, FromRawFd, IntoRawFd};
-use std::os::unix::ffi::{OsStringExt};
+use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::OsStringExt;
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicI16, AtomicI32, AtomicI64, Ordering};
 
 use libc;
+
 use crate::list::{open_dirfd, DirIter, Entry};
 use crate::metadata::{self, Metadata};
-
 use crate::{AsPath, DirFlags, DirMethodFlags, SimpleType};
 
 /// Value if the libc::O_DIRECTORY flag when supported by the system, otherwise 0
@@ -38,7 +38,6 @@ pub const O_SEARCH: libc::c_int = 0;
 /// A safe wrapper around directory file descriptor
 ///
 /// Construct it either with ``Dir::cwd()`` or ``Dir::open(path)``
-///
 #[derive(Debug)]
 pub struct Dir(AtomicRawFd);
 
@@ -60,13 +59,16 @@ impl Dir {
 
     /// Creates a directory descriptor that resolves paths relative to current
     /// working directory (AT_FDCWD)
-    #[deprecated(since="0.1.15", note="\
+    #[deprecated(
+        since = "0.1.15",
+        note = "\
         Use `Dir::open(\".\")` instead. \
         Dir::cwd() doesn't open actual file descriptor and uses magic value \
         instead which resolves to current dir on any syscall invocation. \
         This is usually counter-intuitive and yields a broken \
         file descriptor when using `Dir::as_raw_fd`. \
-        Will be removed in version v0.2 of the library.")]
+        Will be removed in version v0.2 of the library."
+    )]
     pub fn cwd() -> Dir {
         Dir::new(libc::AT_FDCWD)
     }
@@ -213,8 +215,7 @@ impl Dir {
     ///
     /// [`read_link`]: #method.read_link
     pub fn open_file<P: AsPath>(&self, path: P) -> io::Result<File> {
-        self._open_file(to_cstr(path)?.as_ref(),
-            libc::O_RDONLY, 0)
+        self._open_file(to_cstr(path)?.as_ref(), libc::O_RDONLY, 0)
     }
 
     /// Open file for writing, create if necessary, truncate on open
@@ -225,12 +226,12 @@ impl Dir {
     /// clobbering the symlink at the destination.
     ///
     /// [`new_unnamed_file`]: #method.new_unnamed_file
-    pub fn write_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
-        -> io::Result<File>
-    {
-        self._open_file(to_cstr(path)?.as_ref(),
-            libc::O_CREAT|libc::O_WRONLY|libc::O_TRUNC,
-            mode)
+    pub fn write_file<P: AsPath>(&self, path: P, mode: libc::mode_t) -> io::Result<File> {
+        self._open_file(
+            to_cstr(path)?.as_ref(),
+            libc::O_CREAT | libc::O_WRONLY | libc::O_TRUNC,
+            mode,
+        )
     }
 
     /// Open file for append, create if necessary
@@ -239,12 +240,12 @@ impl Dir {
     /// will need to call [`read_link`] to resolve the real path first.
     ///
     /// [`read_link`]: #method.read_link
-    pub fn append_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
-        -> io::Result<File>
-    {
-        self._open_file(to_cstr(path)?.as_ref(),
-            libc::O_CREAT|libc::O_WRONLY|libc::O_APPEND,
-            mode)
+    pub fn append_file<P: AsPath>(&self, path: P, mode: libc::mode_t) -> io::Result<File> {
+        self._open_file(
+            to_cstr(path)?.as_ref(),
+            libc::O_CREAT | libc::O_WRONLY | libc::O_APPEND,
+            mode,
+        )
     }
 
     /// Create file for writing (and truncate) in this directory
@@ -257,13 +258,13 @@ impl Dir {
     /// clobbering the symlink at the destination.
     ///
     /// [`new_unnamed_file`]: #method.new_unnamed_file
-    #[deprecated(since="0.1.7", note="please use `write_file` instead")]
-    pub fn create_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
-        -> io::Result<File>
-    {
-        self._open_file(to_cstr(path)?.as_ref(),
-            libc::O_CREAT|libc::O_WRONLY|libc::O_TRUNC,
-            mode)
+    #[deprecated(since = "0.1.7", note = "please use `write_file` instead")]
+    pub fn create_file<P: AsPath>(&self, path: P, mode: libc::mode_t) -> io::Result<File> {
+        self._open_file(
+            to_cstr(path)?.as_ref(),
+            libc::O_CREAT | libc::O_WRONLY | libc::O_TRUNC,
+            mode,
+        )
     }
 
     /// Create a tmpfile in this directory which isn't linked to any filename
@@ -290,12 +291,12 @@ impl Dir {
     /// can't be accomplished rather than relying on specific error codes,
     /// because semantics of errors are very ugly.
     #[cfg(feature = "o_tmpfile")]
-    pub fn new_unnamed_file(&self, mode: libc::mode_t)
-        -> io::Result<File>
-    {
-        self._open_file(unsafe { CStr::from_bytes_with_nul_unchecked(b".\0") },
-            libc::O_TMPFILE|libc::O_WRONLY,
-            mode)
+    pub fn new_unnamed_file(&self, mode: libc::mode_t) -> io::Result<File> {
+        self._open_file(
+            unsafe { CStr::from_bytes_with_nul_unchecked(b".\0") },
+            libc::O_TMPFILE | libc::O_WRONLY,
+            mode,
+        )
     }
 
     /// Create a tmpfile in this directory which isn't linked to any filename
@@ -319,11 +320,11 @@ impl Dir {
     /// can't be accomplished rather than relying on specific error codes,
     /// because semantics of errors are very ugly.
     #[cfg(not(feature = "o_tmpfile"))]
-    pub fn new_unnamed_file<P: AsPath>(&self, _mode: libc::mode_t)
-        -> io::Result<File>
-    {
-        Err(io::Error::new(io::ErrorKind::Other,
-            "creating unnamed tmpfiles is only supported on linux"))
+    pub fn new_unnamed_file<P: AsPath>(&self, _mode: libc::mode_t) -> io::Result<File> {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "creating unnamed tmpfiles is only supported on linux",
+        ))
     }
 
     /// Link open file to a specified path
@@ -338,9 +339,7 @@ impl Dir {
     /// method may fail even on linux. So your code should be able to fallback
     /// to a named file if this method fails too.
     #[cfg(feature = "link_file_at")]
-    pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, file: &F, path: P)
-        -> io::Result<()>
-    {
+    pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, file: &F, path: P) -> io::Result<()> {
         let fd_path = format!("/proc/self/fd/{}", file.as_raw_fd());
         _hardlink(
             &Dir::new(libc::AT_FDCWD),
@@ -362,15 +361,15 @@ impl Dir {
     /// fails. But in obscure scenarios where `/proc` is not mounted this
     /// method may fail even on linux. So your code should be able to fallback
     /// to a named file if this method fails too.
-    //NOTE(cehteh): would it make sense to remove this function (for non linux), this will
+    // NOTE(cehteh): would it make sense to remove this function (for non linux), this will
     // generate a compile time error rather than a runtime error, which most likely is
     // favorable since the semantic cant easily emulated.
     #[cfg(not(feature = "link_file_at"))]
-    pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, _file: F, _path: P)
-        -> io::Result<()>
-    {
-        Err(io::Error::new(io::ErrorKind::Other,
-            "linking unnamed fd to directories is only supported on linux"))
+    pub fn link_file_at<F: AsRawFd, P: AsPath>(&self, _file: F, _path: P) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "linking unnamed fd to directories is only supported on linux",
+        ))
     }
 
     /// Create file if not exists, fail if exists
@@ -379,12 +378,12 @@ impl Dir {
     /// respect to other threads and processes.
     ///
     /// Technically it means passing `O_EXCL` flag to open.
-    pub fn new_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
-        -> io::Result<File>
-    {
-        self._open_file(to_cstr(path)?.as_ref(),
-            libc::O_CREAT|libc::O_EXCL|libc::O_WRONLY,
-            mode)
+    pub fn new_file<P: AsPath>(&self, path: P, mode: libc::mode_t) -> io::Result<File> {
+        self._open_file(
+            to_cstr(path)?.as_ref(),
+            libc::O_CREAT | libc::O_EXCL | libc::O_WRONLY,
+            mode,
+        )
     }
 
     /// Open file for reading and writing without truncation, create if needed
@@ -393,17 +392,16 @@ impl Dir {
     /// will need to call [`read_link`] to resolve the real path first.
     ///
     /// [`read_link`]: #method.read_link
-    pub fn update_file<P: AsPath>(&self, path: P, mode: libc::mode_t)
-        -> io::Result<File>
-    {
-        self._open_file(to_cstr(path)?.as_ref(),
-            libc::O_CREAT|libc::O_RDWR,
-            mode)
+    pub fn update_file<P: AsPath>(&self, path: P, mode: libc::mode_t) -> io::Result<File> {
+        self._open_file(to_cstr(path)?.as_ref(), libc::O_CREAT | libc::O_RDWR, mode)
     }
 
-    pub(crate) fn _open_file(&self, path: &CStr, flags: libc::c_int, mode: libc::mode_t)
-        -> io::Result<File>
-    {
+    pub(crate) fn _open_file(
+        &self,
+        path: &CStr,
+        flags: libc::c_int,
+        mode: libc::mode_t,
+    ) -> io::Result<File> {
         unsafe {
             // Note: In below call to `openat`, *mode* must be cast to
             // `unsigned` because the optional `mode` argument to `openat` is
@@ -423,11 +421,10 @@ impl Dir {
     /// Make a symlink in this directory
     ///
     /// Note: the order of arguments differ from `symlinkat`
-    pub fn symlink<P: AsPath, R: AsPath>(&self, path: P, value: R)
-        -> io::Result<()>
-    {
+    pub fn symlink<P: AsPath, R: AsPath>(&self, path: P, value: R) -> io::Result<()> {
         self._symlink(to_cstr(path)?.as_ref(), to_cstr(value)?.as_ref())
     }
+
     fn _symlink(&self, path: &CStr, link: &CStr) -> io::Result<()> {
         unsafe {
             let res = libc::symlinkat(link.as_ptr(), self.rawfd()?, path.as_ptr());
@@ -440,11 +437,10 @@ impl Dir {
     }
 
     /// Create a subdirectory in this directory
-    pub fn create_dir<P: AsPath>(&self, path: P, mode: libc::mode_t)
-        -> io::Result<()>
-    {
+    pub fn create_dir<P: AsPath>(&self, path: P, mode: libc::mode_t) -> io::Result<()> {
         self._create_dir(to_cstr(path)?.as_ref(), mode)
     }
+
     fn _create_dir(&self, path: &CStr, mode: libc::mode_t) -> io::Result<()> {
         unsafe {
             libc_ok(libc::mkdirat(self.rawfd()?, path.as_ptr(), mode))?;
@@ -453,9 +449,7 @@ impl Dir {
     }
 
     /// Rename a file in this directory to another name (keeping same dir)
-    pub fn local_rename<P: AsPath, R: AsPath>(&self, old: P, new: R)
-        -> io::Result<()>
-    {
+    pub fn local_rename<P: AsPath, R: AsPath>(&self, old: P, new: R) -> io::Result<()> {
         rename(self, to_cstr(old)?.as_ref(), self, to_cstr(new)?.as_ref())
     }
 
@@ -463,33 +457,33 @@ impl Dir {
     ///
     /// Only supported on Linux.
     #[cfg(feature = "rename_exchange")]
-    pub fn local_exchange<P: AsPath, R: AsPath>(&self, old: P, new: R)
-        -> io::Result<()>
-    {
+    pub fn local_exchange<P: AsPath, R: AsPath>(&self, old: P, new: R) -> io::Result<()> {
         // Workaround https://github.com/tailhook/openat/issues/35
         // AKA https://github.com/rust-lang/libc/pull/2116
         // Unfortunately since we made this libc::c_int in our
         // public API, we can't easily change it right now.
         let flags = libc::RENAME_EXCHANGE as libc::c_int;
-        rename_flags(self, to_cstr(old)?.as_ref(),
-            self, to_cstr(new)?.as_ref(),
-            flags)
+        rename_flags(
+            self,
+            to_cstr(old)?.as_ref(),
+            self,
+            to_cstr(new)?.as_ref(),
+            flags,
+        )
     }
 
     /// Remove a subdirectory in this directory
     ///
     /// Note only empty directory may be removed
-    pub fn remove_dir<P: AsPath>(&self, path: P)
-        -> io::Result<()>
-    {
+    pub fn remove_dir<P: AsPath>(&self, path: P) -> io::Result<()> {
         self._unlink(to_cstr(path)?.as_ref(), libc::AT_REMOVEDIR)
     }
+
     /// Remove a file in this directory
-    pub fn remove_file<P: AsPath>(&self, path: P)
-        -> io::Result<()>
-    {
+    pub fn remove_file<P: AsPath>(&self, path: P) -> io::Result<()> {
         self._unlink(to_cstr(path)?.as_ref(), 0)
     }
+
     fn _unlink(&self, path: &CStr, flags: libc::c_int) -> io::Result<()> {
         unsafe {
             libc_ok(libc::unlinkat(self.rawfd()?, path.as_ptr(), flags))?;
@@ -499,18 +493,16 @@ impl Dir {
 
     /// Removes a directory with all its contents
     pub fn remove_recursive<P: AsPath + Copy>(&self, path: P) -> io::Result<()> {
-        self.list_dir(path)?.try_for_each(|entry| -> io::Result<()> {
-            match entry {
-                Ok(entry) if entry.simple_type() == Some(SimpleType::Dir) => {
-                    self.sub_dir(path)?
-                        .remove_recursive(entry.file_name())
+        self.list_dir(path)?
+            .try_for_each(|entry| -> io::Result<()> {
+                match entry {
+                    Ok(entry) if entry.simple_type() == Some(SimpleType::Dir) => {
+                        self.sub_dir(path)?.remove_recursive(entry.file_name())
+                    }
+                    Ok(entry) => self.remove_file(entry.file_name()),
+                    Err(err) => Err(err),
                 }
-                Ok(entry) => {
-                    self.remove_file(entry.file_name())
-                }
-                Err(err) =>  Err(err)
-            }
-        })?;
+            })?;
         self.remove_dir(path)
     }
 
@@ -520,11 +512,10 @@ impl Dir {
     /// the rename is done in place.  The unique name is determined by changing the path
     /// extension to an increasing number (.0 .1 .2 ... .65534) until the rename
     /// succeeds. When renaming will not succeed this will eventually return an error.
-    pub fn remove_recursive_atomic<P, T>(&self, path: P, tmp_dir: T)
-                                      -> io::Result<()>
+    pub fn remove_recursive_atomic<P, T>(&self, path: P, tmp_dir: T) -> io::Result<()>
     where
         P: AsPath + Copy + std::convert::AsRef<std::path::Path>,
-        T: AsPath + std::convert::AsRef<std::path::Path>
+        T: AsPath + std::convert::AsRef<std::path::Path>,
     {
         let mut to_delete = PathBuf::from(tmp_dir.as_ref());
         if to_delete.as_os_str().is_empty() {
@@ -541,9 +532,11 @@ impl Dir {
                 return self.remove_recursive(&to_delete);
             }
         }
-        Err(io::Error::new(io::ErrorKind::Other, "Could not rename for remove"))
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Could not rename for remove",
+        ))
     }
-
 
     /// Get the path of this directory (if possible)
     ///
@@ -569,6 +562,7 @@ impl Dir {
     pub fn metadata<P: AsPath>(&self, path: P) -> io::Result<Metadata> {
         self._stat(to_cstr(path)?.as_ref(), libc::AT_SYMLINK_NOFOLLOW)
     }
+
     fn _stat(&self, path: &CStr, flags: libc::c_int) -> io::Result<Metadata> {
         unsafe {
             let mut stat = mem::zeroed(); // TODO(cehteh): uninit
@@ -635,7 +629,7 @@ impl Dir {
 
 const CURRENT_DIRECTORY: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
 
-//TODO(cehteh): eventually the clone calls should replicate O_SEARCH, maybe other file flags
+// TODO(cehteh): eventually the clone calls should replicate O_SEARCH, maybe other file flags
 fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
     unsafe {
         match fd_type(fd)? {
@@ -756,9 +750,10 @@ pub(crate) fn libc_ok(ret: libc::c_int) -> io::Result<libc::c_int> {
 ///
 /// Files must be on a single filesystem anyway. This funtion does **not**
 /// fallback to copying if needed.
-pub fn rename<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R)
-    -> io::Result<()>
-    where P: AsPath, R: AsPath,
+pub fn rename<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R) -> io::Result<()>
+where
+    P: AsPath,
+    R: AsPath,
 {
     _rename(
         old_dir,
@@ -788,9 +783,10 @@ fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr) -> io::Result<(
 /// Note: by default ``linkat`` syscall doesn't resolve symbolic links, and
 /// it's also behavior of this function. It's recommended to resolve symlinks
 /// manually if needed.
-pub fn hardlink<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R)
-    -> io::Result<()>
-    where P: AsPath, R: AsPath,
+pub fn hardlink<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R) -> io::Result<()>
+where
+    P: AsPath,
+    R: AsPath,
 {
     _hardlink(
         old_dir,
@@ -827,10 +823,16 @@ fn _hardlink(
 ///
 /// Only supported on Linux.
 #[cfg(feature = "renameat_flags")]
-pub fn rename_flags<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R,
-    flags: libc::c_int)
-    -> io::Result<()>
-    where P: AsPath, R: AsPath,
+pub fn rename_flags<P, R>(
+    old_dir: &Dir,
+    old: P,
+    new_dir: &Dir,
+    new: R,
+    flags: libc::c_int,
+) -> io::Result<()>
+where
+    P: AsPath,
+    R: AsPath,
 {
     _rename_flags(
         old_dir,
@@ -842,10 +844,13 @@ pub fn rename_flags<P, R>(old_dir: &Dir, old: P, new_dir: &Dir, new: R,
 }
 
 #[cfg(feature = "renameat_flags")]
-fn _rename_flags(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr,
-    flags: libc::c_int)
-    -> io::Result<()>
-{
+fn _rename_flags(
+    old_dir: &Dir,
+    old: &CStr,
+    new_dir: &Dir,
+    new: &CStr,
+    flags: libc::c_int,
+) -> io::Result<()> {
     unsafe {
         let res = libc::syscall(
             libc::SYS_renameat2,
@@ -921,10 +926,11 @@ type AtomicRawFd = <RawFd as Atomic>::T;
 
 #[cfg(test)]
 mod test {
-    use std::io::{Read};
-    use std::path::Path;
+    use std::io::Read;
     use std::os::unix::io::{FromRawFd, IntoRawFd};
-    use crate::{Dir};
+    use std::path::Path;
+
+    use crate::Dir;
 
     #[test]
     fn test_open_ok() {
@@ -935,8 +941,10 @@ mod test {
     fn test_read_file() {
         let dir = Dir::open("src").unwrap();
         let mut buf = String::new();
-        dir.open_file("lib.rs").unwrap()
-            .read_to_string(&mut buf).unwrap();
+        dir.open_file("lib.rs")
+            .unwrap()
+            .read_to_string(&mut buf)
+            .unwrap();
         assert!(buf.find("extern crate libc;").is_some());
     }
 
@@ -945,13 +953,15 @@ mod test {
         let dir = Dir::open("src").unwrap();
         let dir = unsafe { Dir::from_raw_fd(dir.into_raw_fd()) };
         let mut buf = String::new();
-        dir.open_file("lib.rs").unwrap()
-            .read_to_string(&mut buf).unwrap();
+        dir.open_file("lib.rs")
+            .unwrap()
+            .read_to_string(&mut buf)
+            .unwrap();
         assert!(buf.find("extern crate libc;").is_some());
     }
 
     #[test]
-    #[should_panic(expected="No such file or directory")]
+    #[should_panic(expected = "No such file or directory")]
     fn test_open_no_dir() {
         Dir::open("src/some-non-existent-file").unwrap();
     }
@@ -960,12 +970,13 @@ mod test {
     fn test_list() {
         let dir = Dir::flags().open("src").unwrap();
         let me = dir.list().unwrap();
-        assert!(me
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap()
-            .iter()
-            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
-            .is_some());
+        assert!(
+            me.collect::<Result<Vec<_>, _>>()
+                .unwrap()
+                .iter()
+                .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+                .is_some()
+        );
     }
 
     #[test]
@@ -974,48 +985,52 @@ mod test {
     fn test_list_opath_fail() {
         let dir = Dir::open("src").unwrap();
         let me = dir.list().unwrap();
-        assert!(me
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap()
-            .iter()
-            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
-            .is_some());
+        assert!(
+            me.collect::<Result<Vec<_>, _>>()
+                .unwrap()
+                .iter()
+                .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+                .is_some()
+        );
     }
 
     #[test]
     fn test_list_self() {
         let dir = Dir::open("src").unwrap();
         let me = dir.list_self().unwrap();
-        assert!(me
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap()
-            .iter()
-            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
-            .is_some());
+        assert!(
+            me.collect::<Result<Vec<_>, _>>()
+                .unwrap()
+                .iter()
+                .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+                .is_some()
+        );
     }
 
     #[test]
     fn test_list_dot() {
         let dir = Dir::open("src").unwrap();
         let me = dir.list_dir(".").unwrap();
-        assert!(me
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap()
-            .iter()
-            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
-            .is_some());
+        assert!(
+            me.collect::<Result<Vec<_>, _>>()
+                .unwrap()
+                .iter()
+                .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+                .is_some()
+        );
     }
 
     #[test]
     fn test_list_dir() {
         let dir = Dir::open(".").unwrap();
         let me = dir.list_dir("src").unwrap();
-        assert!(me
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap()
-            .iter()
-            .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
-            .is_some());
+        assert!(
+            me.collect::<Result<Vec<_>, _>>()
+                .unwrap()
+                .iter()
+                .find(|x| { x.file_name() == Path::new("lib.rs").as_os_str() })
+                .is_some()
+        );
     }
 
     #[test]
@@ -1024,8 +1039,11 @@ mod test {
         let dir = unsafe { Dir::from_raw_fd_checked(fd) }.unwrap();
         let filefd = dir.open_file("src/lib.rs").unwrap().into_raw_fd();
         match unsafe { Dir::from_raw_fd_checked(filefd) } {
-            Ok(_) => assert!(false, "from_raw_fd_checked succeeded on a non-directory fd!"),
-            Err(e) => assert_eq!(e.raw_os_error().unwrap(), libc::ENOTDIR)
+            Ok(_) => assert!(
+                false,
+                "from_raw_fd_checked succeeded on a non-directory fd!"
+            ),
+            Err(e) => assert_eq!(e.raw_os_error().unwrap(), libc::ENOTDIR),
         }
     }
 
@@ -1058,7 +1076,8 @@ mod test {
         d.create_dir("test_removeatomic/foo/bar", 0o777).unwrap();
         d.create_dir("test_removeatomic/bar", 0o777).unwrap();
 
-        d.remove_recursive_atomic("test_removeatomic/foo", "").unwrap();
+        d.remove_recursive_atomic("test_removeatomic/foo", "")
+            .unwrap();
         d.remove_recursive_atomic("test_removeatomic", "").unwrap();
     }
 
@@ -1072,8 +1091,10 @@ mod test {
         d.create_dir("test_removeatomictmp/foo/bar", 0o777).unwrap();
         d.create_dir("test_removeatomictmp/bar", 0o777).unwrap();
 
-        d.remove_recursive_atomic("test_removeatomictmp/foo", "test_removetmp").unwrap();
-        d.remove_recursive_atomic("test_removeatomictmp", "test_removetmp").unwrap();
+        d.remove_recursive_atomic("test_removeatomictmp/foo", "test_removetmp")
+            .unwrap();
+        d.remove_recursive_atomic("test_removeatomictmp", "test_removetmp")
+            .unwrap();
         d.remove_dir("test_removetmp").unwrap();
     }
 }

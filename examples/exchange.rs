@@ -1,17 +1,16 @@
-use openat_ct as openat;
-
-use std::process::exit;
 use std::path::PathBuf;
+use std::process::exit;
 
+use openat_ct as openat;
 use argparse::{ArgumentParser, Parse};
 use openat::Dir;
 
-#[cfg(not(target_os="linux"))]
+#[cfg(not(target_os = "linux"))]
 fn main() {
     println!("Atomic exchange is not supported on this platform")
 }
 
-#[cfg(target_os="linux")]
+#[cfg(target_os = "linux")]
 fn main() {
     let mut path1 = PathBuf::new();
     let mut path2 = PathBuf::new();

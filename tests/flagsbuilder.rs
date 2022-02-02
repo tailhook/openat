@@ -1,5 +1,5 @@
+use openat::Dir;
 use openat_ct as openat;
-use openat::{Dir};
 
 #[test]
 fn dir_flags_builder_basic() {
@@ -43,9 +43,7 @@ fn method_flags_builder_reuse() {
 
 #[test]
 fn method_flags_exported() {
-    let dir = Dir::flags()
-        .with(openat::O_PATH)
-        .open("src");
+    let dir = Dir::flags().with(openat::O_PATH).open("src");
 
     assert!(dir.is_ok());
 }

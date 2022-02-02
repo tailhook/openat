@@ -1,7 +1,7 @@
-use openat_ct as openat;
-
 use std::io::{self, Read, Write};
 use std::os::unix::fs::PermissionsExt;
+
+use openat_ct as openat;
 use openat::Dir;
 
 #[test]

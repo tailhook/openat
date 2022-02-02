@@ -1,8 +1,8 @@
+use std::ffi::{CStr, CString, OsStr};
 use std::io;
-use std::ptr;
-use std::ffi::{CStr, OsStr, CString};
 use std::mem;
 use std::os::unix::ffi::OsStrExt;
+use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
 
@@ -45,10 +45,10 @@ pub struct DirPosition {
 /// Entry returned by iterating over `DirIter` iterator
 #[derive(Debug)]
 pub struct Entry {
-    dir: Arc<DirHandle>,
-    pub name: CString,
+    dir:           Arc<DirHandle>,
+    pub name:      CString,
     pub file_type: Option<SimpleType>,
-    pub ino: libc::ino_t,
+    pub ino:       libc::ino_t,
 }
 
 impl Entry {
@@ -87,32 +87,36 @@ impl Entry {
     }
 }
 
-#[cfg(any(target_os="linux", target_os="fuchsia"))]
+#[cfg(any(target_os = "linux", target_os = "fuchsia"))]
 unsafe fn errno_location() -> *mut libc::c_int {
     libc::__errno_location()
 }
 
-#[cfg(any(target_os="openbsd", target_os="netbsd", target_os="android"))]
+#[cfg(any(target_os = "openbsd", target_os = "netbsd", target_os = "android"))]
 unsafe fn errno_location() -> *mut libc::c_int {
     libc::__errno()
 }
 
-#[cfg(not(any(target_os="linux", target_os="openbsd", target_os="netbsd", target_os="android", target_os="fuchsia")))]
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "openbsd",
+    target_os = "netbsd",
+    target_os = "android",
+    target_os = "fuchsia"
+)))]
 unsafe fn errno_location() -> *mut libc::c_int {
     libc::__error()
 }
 
 impl DirIter {
-
-    unsafe fn next_entry(&mut self) -> io::Result<Option<&libc::dirent>>
-    {
+    unsafe fn next_entry(&mut self) -> io::Result<Option<&libc::dirent>> {
         // Reset errno to detect if error occurred
         *errno_location() = 0;
 
         let entry = libc::readdir(self.dir.raw()?);
         if entry == ptr::null_mut() {
             if *errno_location() == 0 {
-                return Ok(None)
+                return Ok(None);
             } else {
                 return Err(io::Error::last_os_error());
             }
@@ -165,6 +169,7 @@ pub fn open_dirfd(fd: libc::c_int) -> io::Result<DirIter> {
 
 impl Iterator for DirIter {
     type Item = io::Result<Entry>;
+
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
             loop {

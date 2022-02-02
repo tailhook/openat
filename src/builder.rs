@@ -56,7 +56,7 @@ impl DirFlags {
 #[derive(Copy, Clone)]
 pub struct DirMethodFlags<'a> {
     object: &'a Dir,
-    flags: libc::c_int,
+    flags:  libc::c_int,
 }
 
 impl<'a> DirMethodFlags<'a> {
@@ -70,7 +70,7 @@ impl<'a> DirMethodFlags<'a> {
     pub fn with(self, flags: libc::c_int) -> Self {
         Self {
             object: self.object,
-            flags: self.flags | flags,
+            flags:  self.flags | flags,
         }
     }
 
@@ -79,7 +79,7 @@ impl<'a> DirMethodFlags<'a> {
     pub fn without(self, flags: libc::c_int) -> Self {
         Self {
             object: self.object,
-            flags: self.flags & !flags,
+            flags:  self.flags & !flags,
         }
     }
 

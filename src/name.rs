@@ -1,9 +1,8 @@
-use std::ffi::{OsStr, CStr, CString};
-use std::path::{Path, PathBuf};
+use std::ffi::{CStr, CString, OsStr};
 use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 
 use crate::list::Entry;
-
 
 /// The purpose of this is similar to `AsRef<Path>` but it's optimized for
 /// things that can be directly used as `CStr` (which is type passed to
@@ -21,6 +20,7 @@ pub trait AsPath {
 
 impl<'a> AsPath for &'a Path {
     type Buffer = CString;
+
     fn to_path(self) -> Option<CString> {
         CString::new(self.as_os_str().as_bytes()).ok()
     }
@@ -28,6 +28,7 @@ impl<'a> AsPath for &'a Path {
 
 impl<'a> AsPath for &'a PathBuf {
     type Buffer = CString;
+
     fn to_path(self) -> Option<CString> {
         CString::new(self.as_os_str().as_bytes()).ok()
     }
@@ -35,6 +36,7 @@ impl<'a> AsPath for &'a PathBuf {
 
 impl<'a> AsPath for &'a OsStr {
     type Buffer = CString;
+
     fn to_path(self) -> Option<CString> {
         CString::new(self.as_bytes()).ok()
     }
@@ -42,6 +44,7 @@ impl<'a> AsPath for &'a OsStr {
 
 impl<'a> AsPath for &'a str {
     type Buffer = CString;
+
     fn to_path(self) -> Option<CString> {
         CString::new(self.as_bytes()).ok()
     }
@@ -49,6 +52,7 @@ impl<'a> AsPath for &'a str {
 
 impl<'a> AsPath for &'a String {
     type Buffer = CString;
+
     fn to_path(self) -> Option<CString> {
         CString::new(self.as_bytes()).ok()
     }
@@ -56,6 +60,7 @@ impl<'a> AsPath for &'a String {
 
 impl<'a> AsPath for String {
     type Buffer = CString;
+
     fn to_path(self) -> Option<CString> {
         CString::new(self).ok()
     }
@@ -63,6 +68,7 @@ impl<'a> AsPath for String {
 
 impl<'a> AsPath for &'a CStr {
     type Buffer = &'a CStr;
+
     fn to_path(self) -> Option<&'a CStr> {
         Some(self)
     }
@@ -70,6 +76,7 @@ impl<'a> AsPath for &'a CStr {
 
 impl<'a> AsPath for &'a Entry {
     type Buffer = &'a CStr;
+
     fn to_path(self) -> Option<&'a CStr> {
         Some(&self.name)
     }
