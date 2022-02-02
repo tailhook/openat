@@ -2,11 +2,8 @@ use std::ffi::{CStr, CString, OsStr};
 use std::io;
 use std::mem;
 use std::os::unix::ffi::OsStrExt;
-use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
-
-use libc;
 
 use crate::{dir::libc_ok, metadata, Metadata, SimpleType};
 
@@ -114,14 +111,14 @@ impl DirIter {
         *errno_location() = 0;
 
         let entry = libc::readdir(self.dir.raw()?);
-        if entry == ptr::null_mut() {
+        if entry.is_null() {
             if *errno_location() == 0 {
                 return Ok(None);
             } else {
                 return Err(io::Error::last_os_error());
             }
         }
-        return Ok(Some(&*entry));
+        Ok(Some(&*entry))
     }
 
     /// Returns the current directory iterator position. The result should be handled as opaque value
@@ -158,7 +155,7 @@ impl DirIter {
 
 pub fn open_dirfd(fd: libc::c_int) -> io::Result<DirIter> {
     let dir = unsafe { libc::fdopendir(fd) };
-    if dir == std::ptr::null_mut() {
+    if dir.is_null() {
         Err(io::Error::last_os_error())
     } else {
         Ok(DirIter {

@@ -3,8 +3,6 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use libc;
-
 use crate::SimpleType;
 
 /// A file metadata
@@ -34,6 +32,7 @@ impl fmt::Debug for Metadata {
 /// system the underlying types may change. By redefining them here this will stay consistent
 /// to an user of the library.
 #[allow(non_camel_case_types)]
+#[allow(missing_docs)]
 pub mod metadata_types {
     pub type mode_t = libc::mode_t;
     pub type ino_t = libc::ino_t;
@@ -86,6 +85,7 @@ impl Metadata {
     }
 
     /// Returns file size
+    #[allow(clippy::len_without_is_empty)]
     #[deprecated(since = "0.2.0", note = "use Metadata::size(&self)")]
     pub fn len(&self) -> u64 {
         self.stat.st_size as u64

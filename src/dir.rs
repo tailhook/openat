@@ -1,16 +1,13 @@
-use std::ffi::{CStr, CString, OsStr, OsString};
+use std::ffi::{CStr, OsString};
 use std::fs::{read_link, File};
-use std::io::{self, Error};
+use std::io;
 use std::mem;
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicI16, AtomicI32, AtomicI64, Ordering};
 
-use libc;
-
-use crate::list::{open_dirfd, DirIter, Entry};
+use crate::list::{open_dirfd, DirIter};
 use crate::metadata::{self, Metadata};
 use crate::{AsPath, DirFlags, DirMethodFlags, SimpleType};
 
@@ -141,7 +138,7 @@ impl Dir {
     /// the given flags. Further flags can be added/removed by the 'with()'/'without()'
     /// members. And finally be used by 'sub_dir()' and the different 'open()' calls.
     #[inline]
-    pub fn with<'a>(&'a self, flags: libc::c_int) -> DirMethodFlags<'a> {
+    pub fn with(&self, flags: libc::c_int) -> DirMethodFlags {
         DirMethodFlags::new(self, libc::O_CLOEXEC | libc::O_NOFOLLOW | flags)
     }
 
@@ -150,7 +147,7 @@ impl Dir {
     /// added/removed by the 'with()'/'without()' members. And finally be used by 'sub_dir()'
     /// and the different 'open()' calls.
     #[inline]
-    pub fn without<'a>(&'a self, flags: libc::c_int) -> DirMethodFlags<'a> {
+    pub fn without(&self, flags: libc::c_int) -> DirMethodFlags {
         DirMethodFlags::new(self, (libc::O_CLOEXEC | libc::O_NOFOLLOW) & !flags)
     }
 
@@ -344,7 +341,7 @@ impl Dir {
         _hardlink(
             &Dir::new(libc::AT_FDCWD),
             to_cstr(fd_path)?.as_ref(),
-            &self,
+            self,
             to_cstr(path)?.as_ref(),
             libc::AT_SYMLINK_FOLLOW,
         )
@@ -617,11 +614,9 @@ impl Dir {
     /// Explicit closing of a file handle. The object stays alive but all operations on it will fail.
     pub fn close(&self) {
         let fd = self.0.swap(-1, Ordering::AcqRel);
-        if fd != libc::AT_FDCWD {
-            if fd != -1 {
-                unsafe {
-                    libc::close(fd);
-                }
+        if fd != libc::AT_FDCWD && fd != -1 {
+            unsafe {
+                libc::close(fd);
             }
         }
     }
@@ -889,7 +884,7 @@ impl IntoRawFd for Dir {
     fn into_raw_fd(self) -> RawFd {
         let result = self.0.load(Ordering::Acquire);
         mem::forget(self);
-        return result;
+        result
     }
 }
 
