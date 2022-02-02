@@ -42,10 +42,10 @@ pub struct DirPosition {
 /// Entry returned by iterating over `DirIter` iterator
 #[derive(Debug)]
 pub struct Entry {
-    dir:           Arc<DirHandle>,
-    pub name:      CString,
-    pub file_type: Option<SimpleType>,
-    pub ino:       libc::ino_t,
+    dir:             Arc<DirHandle>,
+    pub(crate) name: CString,
+    file_type:       Option<SimpleType>,
+    ino:             libc::ino_t,
 }
 
 impl Entry {

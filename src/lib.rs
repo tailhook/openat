@@ -52,7 +52,7 @@ mod name;
 pub use crate::builder::{DirFlags, DirMethodFlags};
 pub use crate::dir::{hardlink, rename, Dir, O_DIRECTORY, O_PATH, O_SEARCH};
 pub use crate::filetype::SimpleType;
-pub use crate::list::DirIter;
+pub use crate::list::{DirIter, Entry};
 pub use crate::metadata::{metadata_types, Metadata};
 pub use crate::name::AsPath;
 
