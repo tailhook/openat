@@ -553,7 +553,7 @@ impl Dir {
     /// This function **consumes ownership** of the specified file
     /// descriptor. The returned `Dir` will take responsibility for
     /// closing it when it goes out of scope.
-    pub unsafe fn from_raw_fd_checked(fd: RawFd) -> io::Result<Self> {
+    pub fn from_raw_fd_checked(fd: RawFd) -> io::Result<Self> {
         match fd_type(fd)? {
             FdType::NormalDir | FdType::OPathDir => Ok(Dir::new(fd)),
             FdType::Other => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
@@ -996,9 +996,9 @@ mod test {
     #[test]
     fn test_from_raw_fd_checked() {
         let fd = Dir::open(".").unwrap().into_raw_fd();
-        let dir = unsafe { Dir::from_raw_fd_checked(fd) }.unwrap();
+        let dir = Dir::from_raw_fd_checked(fd).unwrap();
         let filefd = dir.open_file("src/lib.rs").unwrap().into_raw_fd();
-        match unsafe { Dir::from_raw_fd_checked(filefd) } {
+        match Dir::from_raw_fd_checked(filefd) {
             Ok(_) => assert!(
                 false,
                 "from_raw_fd_checked succeeded on a non-directory fd!"
