@@ -60,15 +60,6 @@ pub use crate::filetype::SimpleType;
 pub use crate::metadata::{Metadata, metadata_types};
 pub use crate::builder::{DirFlags, DirMethodFlags};
 
-use std::os::unix::io::RawFd;
-use std::sync::Arc;
-
-/// A safe wrapper around directory file descriptor
-///
-/// Construct it either with ``Dir::cwd()`` or ``Dir::open(path)``
-///
-#[derive(Debug)]
-pub struct Dir(RawFd);
 
 #[cfg(test)]
 mod test {

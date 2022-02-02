@@ -11,7 +11,7 @@ use libc;
 use crate::list::{open_dirfd, DirIter, Entry};
 use crate::metadata::{self, Metadata};
 
-use crate::{AsPath, Dir, DirFlags, DirMethodFlags, SimpleType};
+use crate::{AsPath, DirFlags, DirMethodFlags, SimpleType};
 
 /// Value if the libc::O_DIRECTORY flag when supported by the system, otherwise 0
 #[cfg(feature = "o_directory")]
@@ -33,6 +33,13 @@ pub const O_SEARCH: libc::c_int = libc::O_SEARCH;
 /// Value if the libc::O_SEARCH flag when supported by the system, otherwise 0
 #[cfg(not(feature = "o_search"))]
 pub const O_SEARCH: libc::c_int = 0;
+
+/// A safe wrapper around directory file descriptor
+///
+/// Construct it either with ``Dir::cwd()`` or ``Dir::open(path)``
+///
+#[derive(Debug)]
+pub struct Dir(pub(crate) RawFd);
 
 impl Dir {
     /// Creates a directory descriptor that resolves paths relative to current
