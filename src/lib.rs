@@ -11,9 +11,6 @@
 //! also be unmounted or be out of chroot and you will still be able to
 //! access files relative to it.*
 //!
-//! *Note2: The constructor `Dir::cwd()` is deprecated, and it's recommended
-//! to use `Dir::open(".")` instead.*
-//!
 //! *Note3: Some OS's (e.g., macOS) do not provide `O_PATH`, in which case the
 //! file descriptor is of regular type.*
 //!

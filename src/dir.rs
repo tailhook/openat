@@ -54,22 +54,6 @@ impl Dir {
         }
     }
 
-    /// Creates a directory descriptor that resolves paths relative to current
-    /// working directory (AT_FDCWD)
-    #[deprecated(
-        since = "0.1.15",
-        note = "\
-        Use `Dir::open(\".\")` instead. \
-        Dir::cwd() doesn't open actual file descriptor and uses magic value \
-        instead which resolves to current dir on any syscall invocation. \
-        This is usually counter-intuitive and yields a broken \
-        file descriptor when using `Dir::as_raw_fd`. \
-        Will be removed in version v0.2 of the library."
-    )]
-    pub fn cwd() -> Dir {
-        Dir::new(libc::AT_FDCWD)
-    }
-
     /// Create a flags builder for Dir objects.  Initial flags default to `O_CLOEXEC'. More
     /// flags can be set added by 'with()' and existing/default flags can be removed by
     /// 'without()'. The flags builder can the be used to 'open()' to create
@@ -241,25 +225,6 @@ impl Dir {
         self._open_file(
             to_cstr(path)?.as_ref(),
             libc::O_CREAT | libc::O_WRONLY | libc::O_APPEND,
-            mode,
-        )
-    }
-
-    /// Create file for writing (and truncate) in this directory
-    ///
-    /// Deprecated alias for `write_file`
-    ///
-    /// If there exists a symlink at the destination path, this method will fail. In that case, you
-    /// will need to remove the symlink before calling this method. If you are on Linux, you can
-    /// alternatively create an unnamed file with [`new_unnamed_file`] and then rename it,
-    /// clobbering the symlink at the destination.
-    ///
-    /// [`new_unnamed_file`]: #method.new_unnamed_file
-    #[deprecated(since = "0.1.7", note = "please use `write_file` instead")]
-    pub fn create_file<P: AsPath>(&self, path: P, mode: libc::mode_t) -> io::Result<File> {
-        self._open_file(
-            to_cstr(path)?.as_ref(),
-            libc::O_CREAT | libc::O_WRONLY | libc::O_TRUNC,
             mode,
         )
     }

@@ -116,17 +116,6 @@ impl<'a> DirMethodFlags<'a> {
         )
     }
 
-    /// Create file for writing (and truncate) in this directory
-    #[deprecated(since = "0.1.7", note = "please use `write_file` instead")]
-    #[inline]
-    pub fn create_file<P: AsPath>(&self, path: P, mode: libc::mode_t) -> io::Result<File> {
-        self.object._open_file(
-            to_cstr(path)?.as_ref(),
-            self.flags | libc::O_CREAT | libc::O_WRONLY | libc::O_TRUNC,
-            mode,
-        )
-    }
-
     /// Create a tmpfile in this directory which isn't linked to any filename
     #[cfg(feature = "o_tmpfile")]
     #[inline]
