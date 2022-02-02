@@ -11,7 +11,7 @@ categories = ["filesystem", "api-bindings"]
 repository = "https://github.com/cehteh/openat"
 homepage = "https://github.com/cehteh/openat"
 documentation = "http://docs.rs/openat_ct"
-version = "0.2.0-pre5"
+version = "0.2.0-pre6"
 authors = ["paul@colomiets.name, ct@pipapo.org"]
 edition = "2021"
 
@@ -31,12 +31,12 @@ rename_exchange = []
 statx = []
 
 [dependencies]
-libc = "0.2.34"
+libc = "0.2"
 
 [build-dependencies]
-libc = "0.2.104"
+libc = "0.2"
 conf_test = "0.2"
 
 [dev-dependencies]
-argparse = "0.2.1"
-tempfile = "3.0.3"
+argparse = "0.2"
+tempfile = "3.0"
