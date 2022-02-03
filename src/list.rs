@@ -1,9 +1,11 @@
 use std::ffi::{CStr, CString, OsStr};
 use std::io;
+use std::fmt;
 use std::mem;
 use std::os::unix::ffi::OsStrExt;
-use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
+
+use parking_lot::{RwLock, RwLockReadGuard};
 
 use crate::{dir::libc_ok, metadata, Metadata, SimpleType};
 
@@ -14,7 +16,6 @@ const DOTDOT: [libc::c_char; 3] = [b'.' as libc::c_char, b'.' as libc::c_char, 0
 /// Iterator over directory entries
 ///
 /// Created using `Dir::list_dir()`
-#[derive(Debug)]
 pub struct DirIter {
     // Needs Arc here to be shared with Entries, for metdata()
     dir: Arc<DirHandle>,
@@ -40,7 +41,6 @@ pub struct DirPosition {
 }
 
 /// Entry returned by iterating over `DirIter` iterator
-#[derive(Debug)]
 pub struct Entry {
     dir:             Arc<DirHandle>,
     pub(crate) name: CString,
@@ -69,7 +69,7 @@ impl Entry {
         unsafe {
             let mut stat = mem::zeroed(); // TODO(cehteh): uninit
             libc_ok(libc::fstatat(
-                libc::dirfd(self.dir.raw()?),
+                libc::dirfd(*self.dir.raw()?),
                 self.name.as_ptr(),
                 &mut stat,
                 libc::AT_SYMLINK_NOFOLLOW,
@@ -81,6 +81,17 @@ impl Entry {
     /// Closes the iterators directory handle, stops the iteration
     pub fn stop(&self) {
         self.dir.close();
+    }
+}
+
+impl fmt::Debug for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Entry")
+            .field("dir", &Arc::as_ptr(&self.dir))
+            .field("name", &self.name)
+            .field("file_type", &self.file_type)
+            .field("ino", &self.ino)
+            .finish()
     }
 }
 
@@ -110,7 +121,7 @@ impl DirIter {
         // Reset errno to detect if error occurred
         *errno_location() = 0;
 
-        let entry = libc::readdir(self.dir.raw()?);
+        let entry = libc::readdir(*self.dir.raw()?);
         if entry.is_null() {
             if *errno_location() == 0 {
                 return Ok(None);
@@ -123,7 +134,7 @@ impl DirIter {
 
     /// Returns the current directory iterator position. The result should be handled as opaque value
     pub fn current_position(&self) -> io::Result<DirPosition> {
-        let pos = unsafe { libc::telldir(self.dir.raw()?) };
+        let pos = unsafe { libc::telldir(*self.dir.raw()?) };
 
         if pos == -1 {
             Err(io::Error::last_os_error())
@@ -136,14 +147,14 @@ impl DirIter {
     /// Sets the current directory iterator position to some location queried by 'current_position()'
     pub fn seek(&self, position: DirPosition) {
         if let Ok(dir) = self.dir.raw() {
-            unsafe { libc::seekdir(dir, position.pos) };
+            unsafe { libc::seekdir(*dir, position.pos) };
         }
     }
 
     /// Resets the current directory iterator position to the beginning
     pub fn rewind(&self) {
         if let Ok(dir) = self.dir.raw() {
-            unsafe { libc::rewinddir(dir) };
+            unsafe { libc::rewinddir(*dir) };
         }
     }
 
@@ -196,16 +207,16 @@ impl Iterator for DirIter {
     }
 }
 
-#[derive(Debug)]
-struct DirHandle(AtomicPtr<libc::DIR>);
+//#[derive(Debug)]
+struct DirHandle(RwLock<*mut libc::DIR>);
 
 impl DirHandle {
     fn new(dir: *mut libc::DIR) -> Self {
-        DirHandle(AtomicPtr::new(dir))
+        DirHandle(RwLock::new(dir))
     }
 
-    fn raw(&self) -> io::Result<*mut libc::DIR> {
-        let dir = self.0.load(Ordering::Acquire);
+    fn raw(&self) -> io::Result<RwLockReadGuard<*mut libc::DIR>> {
+        let dir = self.0.read();
         if !dir.is_null() {
             Ok(dir)
         } else {
@@ -214,10 +225,11 @@ impl DirHandle {
     }
 
     fn close(&self) {
-        let dir = self.0.swap(std::ptr::null_mut(), Ordering::AcqRel);
+        let mut dir = self.0.write();
         if !dir.is_null() {
             unsafe {
-                libc::closedir(dir);
+                libc::closedir(*dir);
+                *dir = std::ptr::null_mut();
             }
         }
     }
