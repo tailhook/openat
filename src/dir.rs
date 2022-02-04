@@ -6,8 +6,6 @@ use std::os::unix::ffi::OsStringExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::path::{Path, PathBuf};
 
-use parking_lot::{RwLock, RwLockReadGuard};
-
 use crate::list::{open_dirfd, DirIter};
 use crate::metadata::{self, Metadata};
 use crate::{AsPath, DirFlags, DirMethodFlags, SimpleType};
@@ -37,22 +35,17 @@ pub const O_SEARCH: libc::c_int = 0;
 ///
 /// Construct it either with ``Dir::cwd()`` or ``Dir::open(path)``
 #[derive(Debug)]
-pub struct Dir(RwLock<RawFd>);
+pub struct Dir(RawFd);
 
 impl Dir {
     /// low level ctor, only used by builder and tests
     pub(crate) fn new(fd: RawFd) -> Self {
-        Dir(RwLock::new(fd))
+        Dir(fd)
     }
 
     /// Gets the underlying RawFd from a Dir handle.
-    pub(crate) fn rawfd(&self) -> io::Result<RwLockReadGuard<RawFd>> {
-        let rawfd = self.0.read();
-        if *rawfd != -1 {
-            Ok(rawfd)
-        } else {
-            Err(io::Error::from_raw_os_error(libc::EBADF))
-        }
+    pub(crate) fn rawfd(&self) -> RawFd {
+        self.0
     }
 
     /// Create a flags builder for Dir objects.  Initial flags default to `O_CLOEXEC'. More
@@ -93,7 +86,7 @@ impl Dir {
     /// explicitly. Thats what 'is_dir()' is for. Returns 'true' when the underlying handles
     /// represents a directory and false otherwise.
     pub fn is_dir(&self) -> bool {
-        match fd_type(*self.0.read()).unwrap_or(FdType::Other) {
+        match fd_type(self.0).unwrap_or(FdType::Other) {
             FdType::NormalDir | FdType::OPathDir => true,
             FdType::Other => false,
         }
@@ -114,7 +107,7 @@ impl Dir {
     /// Create a DirIter from a Dir
     /// Dir must not be a handle opened with O_PATH.
     pub fn list(self) -> io::Result<DirIter> {
-        let fd = *self.rawfd()?;
+        let fd = self.0;
         std::mem::forget(self);
         open_dirfd(fd)
     }
@@ -159,11 +152,7 @@ impl Dir {
 
     pub(crate) fn _sub_dir(&self, path: &CStr, flags: libc::c_int) -> io::Result<Dir> {
         Ok(Dir::new(unsafe {
-            libc_ok(libc::openat(
-                *self.rawfd()?,
-                path.as_ptr(),
-                flags | O_DIRECTORY,
-            ))?
+            libc_ok(libc::openat(self.0, path.as_ptr(), flags | O_DIRECTORY))?
         }))
     }
 
@@ -176,7 +165,7 @@ impl Dir {
         let mut buf = vec![0u8; 4096];
         let res = unsafe {
             libc::readlinkat(
-                *self.rawfd()?,
+                self.0,
                 path.as_ptr(),
                 buf.as_mut_ptr() as *mut libc::c_char,
                 buf.len(),
@@ -372,7 +361,7 @@ impl Dir {
             // promoted as they are in C this would break on Freebsd where
             // *mode_t* is an alias for `uint16_t`.
             let res = libc_ok(libc::openat(
-                *self.rawfd()?,
+                self.0,
                 path.as_ptr(),
                 flags | libc::O_CLOEXEC | libc::O_NOFOLLOW,
                 mode as libc::c_uint,
@@ -390,7 +379,7 @@ impl Dir {
 
     fn _symlink(&self, path: &CStr, link: &CStr) -> io::Result<()> {
         unsafe {
-            let res = libc::symlinkat(link.as_ptr(), *self.rawfd()?, path.as_ptr());
+            let res = libc::symlinkat(link.as_ptr(), self.0, path.as_ptr());
             if res < 0 {
                 Err(io::Error::last_os_error())
             } else {
@@ -406,7 +395,7 @@ impl Dir {
 
     fn _create_dir(&self, path: &CStr, mode: libc::mode_t) -> io::Result<()> {
         unsafe {
-            libc_ok(libc::mkdirat(*self.rawfd()?, path.as_ptr(), mode))?;
+            libc_ok(libc::mkdirat(self.0, path.as_ptr(), mode))?;
         }
         Ok(())
     }
@@ -449,7 +438,7 @@ impl Dir {
 
     fn _unlink(&self, path: &CStr, flags: libc::c_int) -> io::Result<()> {
         unsafe {
-            libc_ok(libc::unlinkat(*self.rawfd()?, path.as_ptr(), flags))?;
+            libc_ok(libc::unlinkat(self.0, path.as_ptr(), flags))?;
         }
         Ok(())
     }
@@ -507,8 +496,8 @@ impl Dir {
     /// available so use with care.
     #[cfg(feature = "proc_self_fd")]
     pub fn recover_path(&self) -> io::Result<PathBuf> {
-        let fd = self.rawfd()?;
-        if *fd != libc::AT_FDCWD {
+        let fd = self.rawfd();
+        if fd != libc::AT_FDCWD {
             read_link(format!("/proc/self/fd/{}", fd))
         } else {
             read_link("/proc/self/cwd")
@@ -529,12 +518,7 @@ impl Dir {
     fn _stat(&self, path: &CStr, flags: libc::c_int) -> io::Result<Metadata> {
         unsafe {
             let mut stat = mem::zeroed(); // TODO(cehteh): uninit
-            libc_ok(libc::fstatat(
-                *self.rawfd()?,
-                path.as_ptr(),
-                &mut stat,
-                flags,
-            ))?;
+            libc_ok(libc::fstatat(self.0, path.as_ptr(), &mut stat, flags))?;
             Ok(metadata::new(stat))
         }
     }
@@ -543,7 +527,7 @@ impl Dir {
     pub fn self_metadata(&self) -> io::Result<Metadata> {
         unsafe {
             let mut stat = mem::zeroed(); // TODO(cehteh): uninit
-            libc_ok(libc::fstat(*self.rawfd()?, &mut stat))?;
+            libc_ok(libc::fstat(self.0, &mut stat))?;
             Ok(metadata::new(stat))
         }
     }
@@ -564,28 +548,17 @@ impl Dir {
     /// Creates a new independently owned handle to the underlying directory.
     /// The new handle has the same (Normal/O_PATH) semantics as the original handle.
     pub fn try_clone(&self) -> io::Result<Self> {
-        Ok(Dir::new(clone_dirfd(*self.rawfd()?)?))
+        Ok(Dir::new(clone_dirfd(self.0)?))
     }
 
     /// Creates a new 'Normal' independently owned handle to the underlying directory.
     pub fn clone_upgrade(&self) -> io::Result<Self> {
-        Ok(Dir::new(clone_dirfd_upgrade(*self.rawfd()?, 0)?))
+        Ok(Dir::new(clone_dirfd_upgrade(self.0, 0)?))
     }
 
     /// Creates a new 'O_PATH' restricted independently owned handle to the underlying directory.
     pub fn clone_downgrade(&self) -> io::Result<Self> {
-        Ok(Dir::new(clone_dirfd_downgrade(*self.rawfd()?)?))
-    }
-
-    /// Explicit closing of a file handle. The object stays alive but all operations on it will fail.
-    pub fn close(&self) {
-        let mut fd = self.0.write();
-        if *fd != libc::AT_FDCWD && *fd != -1 {
-            unsafe {
-                libc::close(*fd);
-                *fd = -1;
-            }
-        }
+        Ok(Dir::new(clone_dirfd_downgrade(self.0)?))
     }
 }
 
@@ -728,9 +701,9 @@ where
 fn _rename(old_dir: &Dir, old: &CStr, new_dir: &Dir, new: &CStr) -> io::Result<()> {
     unsafe {
         libc_ok(libc::renameat(
-            *old_dir.rawfd()?,
+            old_dir.rawfd(),
             old.as_ptr(),
-            *new_dir.rawfd()?,
+            new_dir.rawfd(),
             new.as_ptr(),
         ))?;
     }
@@ -768,9 +741,9 @@ fn _hardlink(
 ) -> io::Result<()> {
     unsafe {
         libc_ok(libc::linkat(
-            *old_dir.rawfd()?,
+            old_dir.rawfd(),
             old.as_ptr(),
-            *new_dir.rawfd()?,
+            new_dir.rawfd(),
             new.as_ptr(),
             flags,
         ))?;
@@ -816,9 +789,9 @@ fn _rename_flags(
     unsafe {
         let res = libc::syscall(
             libc::SYS_renameat2,
-            old_dir.rawfd()?,
+            old_dir.rawfd(),
             old.as_ptr(),
-            new_dir.rawfd()?,
+            new_dir.rawfd(),
             new.as_ptr(),
             flags,
         );
@@ -833,7 +806,7 @@ fn _rename_flags(
 impl AsRawFd for Dir {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
-        *self.0.read()
+        self.0
     }
 }
 
@@ -849,7 +822,7 @@ impl FromRawFd for Dir {
 impl IntoRawFd for Dir {
     #[inline]
     fn into_raw_fd(self) -> RawFd {
-        let result = *self.0.read();
+        let result = self.0;
         mem::forget(self);
         result
     }
@@ -857,7 +830,9 @@ impl IntoRawFd for Dir {
 
 impl Drop for Dir {
     fn drop(&mut self) {
-        self.close();
+        unsafe {
+            libc::close(self.0);
+        }
     }
 }
 

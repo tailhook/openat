@@ -5,8 +5,6 @@ use std::mem;
 use std::os::unix::ffi::OsStrExt;
 use std::sync::Arc;
 
-use parking_lot::{RwLock, RwLockReadGuard};
-
 use crate::{dir::libc_ok, metadata, Metadata, SimpleType};
 
 // We have such weird constants because C types are ugly
@@ -69,18 +67,13 @@ impl Entry {
         unsafe {
             let mut stat = mem::zeroed(); // TODO(cehteh): uninit
             libc_ok(libc::fstatat(
-                libc::dirfd(*self.dir.raw()?),
+                libc::dirfd(self.dir.raw()),
                 self.name.as_ptr(),
                 &mut stat,
                 libc::AT_SYMLINK_NOFOLLOW,
             ))?;
             Ok(metadata::new(stat))
         }
-    }
-
-    /// Closes the iterators directory handle, stops the iteration
-    pub fn stop(&self) {
-        self.dir.close();
     }
 }
 
@@ -121,7 +114,7 @@ impl DirIter {
         // Reset errno to detect if error occurred
         *errno_location() = 0;
 
-        let entry = libc::readdir(*self.dir.raw()?);
+        let entry = libc::readdir(self.dir.raw());
         if entry.is_null() {
             if *errno_location() == 0 {
                 return Ok(None);
@@ -134,7 +127,7 @@ impl DirIter {
 
     /// Returns the current directory iterator position. The result should be handled as opaque value
     pub fn current_position(&self) -> io::Result<DirPosition> {
-        let pos = unsafe { libc::telldir(*self.dir.raw()?) };
+        let pos = unsafe { libc::telldir(self.dir.raw()) };
 
         if pos == -1 {
             Err(io::Error::last_os_error())
@@ -146,21 +139,12 @@ impl DirIter {
     // note the C-API does not report errors for seekdir/rewinddir, thus we don't do as well.
     /// Sets the current directory iterator position to some location queried by 'current_position()'
     pub fn seek(&self, position: DirPosition) {
-        if let Ok(dir) = self.dir.raw() {
-            unsafe { libc::seekdir(*dir, position.pos) };
-        }
+        unsafe { libc::seekdir(self.dir.raw(), position.pos) };
     }
 
     /// Resets the current directory iterator position to the beginning
     pub fn rewind(&self) {
-        if let Ok(dir) = self.dir.raw() {
-            unsafe { libc::rewinddir(*dir) };
-        }
-    }
-
-    /// Closes the DIR handle, frees the underlying file descriptor
-    pub fn close(&mut self) {
-        self.dir.close();
+        unsafe { libc::rewinddir(self.dir.raw()) };
     }
 }
 
@@ -208,36 +192,23 @@ impl Iterator for DirIter {
 }
 
 //#[derive(Debug)]
-struct DirHandle(RwLock<*mut libc::DIR>);
+struct DirHandle(*mut libc::DIR);
 
 impl DirHandle {
     fn new(dir: *mut libc::DIR) -> Self {
-        DirHandle(RwLock::new(dir))
+        DirHandle(dir)
     }
 
-    fn raw(&self) -> io::Result<RwLockReadGuard<*mut libc::DIR>> {
-        let dir = self.0.read();
-        if !dir.is_null() {
-            Ok(dir)
-        } else {
-            Err(io::Error::from_raw_os_error(libc::EBADF))
-        }
-    }
-
-    fn close(&self) {
-        let mut dir = self.0.write();
-        if !dir.is_null() {
-            unsafe {
-                libc::closedir(*dir);
-                *dir = std::ptr::null_mut();
-            }
-        }
+    fn raw(&self) -> *mut libc::DIR {
+        self.0
     }
 }
 
 impl Drop for DirHandle {
     fn drop(&mut self) {
-        self.close();
+        unsafe {
+            libc::closedir(self.0);
+        }
     }
 }
 
