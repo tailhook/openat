@@ -11,19 +11,20 @@ categories = ["filesystem", "api-bindings"]
 repository = "https://github.com/cehteh/openat"
 homepage = "https://github.com/cehteh/openat"
 documentation = "http://docs.rs/openat_ct"
-version = "0.2.0-pre9"
+version = "0.2.0-pre10"
 authors = ["paul@colomiets.name, ct@pipapo.org"]
 edition = "2021"
 
 [features]
 default = []
-linux = ["o_path", "o_directory", "o_tmpfile", "statx", "proc_self_fd", "link_file_at", "rename_exchange", "renameat_flags"]
+linux = ["o_path", "o_directory", "o_tmpfile", "statx", "proc_self_fd", "link_file_at", "rename_exchange", "renameat_flags", "fcntl_f_dupfd_cloexec"]
 #NOTE(cehteh): eventually provide some baseline configs for other OS'es (for cross compilation)
 o_path = []
 o_directory = []
 o_tmpfile = []
 o_search = []
 fcntl_o_directory = []
+fcntl_f_dupfd_cloexec = []
 proc_self_fd = []
 link_file_at = []
 renameat_flags = []

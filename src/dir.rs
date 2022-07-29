@@ -564,6 +564,17 @@ impl Dir {
 
 const CURRENT_DIRECTORY: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
 
+#[cfg(all(feature = "o_path", feature = "fcntl_f_dupfd_cloexec"))]
+unsafe fn dup_cloexec(fd: libc::c_int) -> io::Result<libc::c_int> {
+    libc_ok(libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 0))
+}
+
+#[cfg(all(feature = "o_path", not(feature = "fcntl_f_dupfd_cloexec")))]
+unsafe fn dup_cloexec(fd: libc::c_int) -> io::Result<libc::c_int> {
+    libc_ok(libc::fcntl(fd, libc::F_DUPFD, 0))?;
+    libc_ok(libc::fcntl(fd, libc::F_SETFD, FD_CLOEXEC))
+}
+
 // TODO(cehteh): eventually the clone calls should replicate O_SEARCH, maybe other file flags
 fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
     unsafe {
@@ -573,8 +584,7 @@ fn clone_dirfd(fd: libc::c_int) -> io::Result<libc::c_int> {
                 &CURRENT_DIRECTORY as *const libc::c_char,
                 O_DIRECTORY | libc::O_CLOEXEC,
             )),
-            #[cfg(feature = "o_path")]
-            FdType::OPathDir => libc_ok(libc::dup(fd)),
+            FdType::OPathDir => dup_cloexec(fd),
             _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
     }
@@ -608,8 +618,7 @@ fn clone_dirfd_downgrade(fd: libc::c_int) -> io::Result<libc::c_int> {
                 &CURRENT_DIRECTORY as *const libc::c_char,
                 O_DIRECTORY | libc::O_CLOEXEC,
             )),
-            #[cfg(feature = "o_path")]
-            FdType::OPathDir => libc_ok(libc::dup(fd)),
+            FdType::OPathDir => dup_cloexec(fd),
             _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
         }
     }
