@@ -560,6 +560,27 @@ impl Dir {
     pub fn clone_downgrade(&self) -> io::Result<Self> {
         Ok(Dir::new(clone_dirfd_downgrade(self.0)?))
     }
+
+    /// Flush recent changes to the contents of this directory to persistent storage.
+    ///
+    /// With some operating systems and/or file systems, you must do this after creating,
+    /// removing, or renaming files in a directory to ensure that your changes survive a
+    /// crash, _even if_ the operations you performed are documented as atomic (e.g. [`rename`]).
+    /// If you changed the contents of any files as well as renaming them, you must also
+    /// perform a [`sync_all`] on each modified file _before_ renaming it.
+    ///
+    /// The `Dir` object must have been opened with `O_SEARCH` or `O_RDONLY`, not `O_PATH`,
+    /// for this operation to succeed.  Use `Dir::flags().open()` to create the `Dir`
+    /// appropriately, or use `clone_upgrade` to convert an existing `Dir`.
+    ///
+    /// [`rename`]: std::fs::rename
+    /// [`sync_all`]: std::fs::File::sync_all
+    pub fn sync(&self) -> io::Result<()> {
+        unsafe {
+            libc_ok(libc::fsync(self.0))?;
+            Ok(())
+        }
+    }
 }
 
 const CURRENT_DIRECTORY: [libc::c_char; 2] = [b'.' as libc::c_char, 0];
