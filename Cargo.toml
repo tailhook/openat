@@ -1,22 +1,42 @@
 [package]
-name = "openat"
+name = "openat_ct"
 description = """
     A wrapper around openat, symlinkat, and similar system calls
+    forked and improved from https://crates.io/crates/openat
 """
 license = "MIT/Apache-2.0"
 readme = "README.md"
 keywords = ["open", "openat", "filesystem", "fs"]
 categories = ["filesystem", "api-bindings"]
-repository = "https://github.com/tailhook/openat"
-homepage = "https://github.com/tailhook/openat"
-documentation = "http://docs.rs/openat"
-version = "0.1.21"
-authors = ["paul@colomiets.name"]
-edition = "2018"
+repository = "https://github.com/cehteh/openat"
+homepage = "https://github.com/cehteh/openat"
+documentation = "http://docs.rs/openat_ct"
+version = "0.2.0-pre10"
+authors = ["paul@colomiets.name, ct@pipapo.org"]
+edition = "2021"
+
+[features]
+default = []
+linux = ["o_path", "o_directory", "o_tmpfile", "statx", "proc_self_fd", "link_file_at", "rename_exchange", "renameat_flags", "fcntl_f_dupfd_cloexec"]
+#NOTE(cehteh): eventually provide some baseline configs for other OS'es (for cross compilation)
+o_path = []
+o_directory = []
+o_tmpfile = []
+o_search = []
+fcntl_o_directory = []
+fcntl_f_dupfd_cloexec = []
+proc_self_fd = []
+link_file_at = []
+renameat_flags = []
+rename_exchange = []
+statx = []
 
 [dependencies]
-libc = "0.2.34"
+libc = "0.2"
+
+[build-dependencies]
+conf_test = "0.3.0"
 
 [dev-dependencies]
-argparse = "0.2.1"
-tempfile = "3.0.3"
+argparse = "0.2"
+tempfile = "3.0"

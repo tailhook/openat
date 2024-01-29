@@ -1,12 +1,11 @@
-extern crate tempfile;
-extern crate openat;
-
 use std::io::{self, Read, Write};
 use std::os::unix::fs::PermissionsExt;
+
+use openat_ct as openat;
 use openat::Dir;
 
 #[test]
-#[cfg(target_os="linux")]
+#[cfg(all(feature = "o_tmpfile", feature = "link_file_at"))]
 fn unnamed_tmp_file_link() -> Result<(), io::Error> {
     let tmp = tempfile::tempdir()?;
     let dir = Dir::open(tmp.path())?;

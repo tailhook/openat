@@ -11,9 +11,6 @@
 //! also be unmounted or be out of chroot and you will still be able to
 //! access files relative to it.*
 //!
-//! *Note2: The constructor `Dir::cwd()` is deprecated, and it's recommended
-//! to use `Dir::open(".")` instead.*
-//!
 //! *Note3: Some OS's (e.g., macOS) do not provide `O_PATH`, in which case the
 //! file descriptor is of regular type.*
 //!
@@ -41,55 +38,43 @@
 //! Also while all methods of dir accept any path if you want to prevent
 //! certain symlink attacks and race condition you should only use
 //! a single-component path. I.e. open one part of a chain at a time.
-//!
 #![warn(missing_docs)]
 
 extern crate libc;
 
+mod builder;
 mod dir;
-mod list;
-mod name;
 mod filetype;
+mod list;
 mod metadata;
+mod name;
 
-pub use crate::list::DirIter;
-pub use crate::name::AsPath;
-pub use crate::dir::{rename, hardlink};
+pub use crate::builder::{DirFlags, DirMethodFlags};
+pub use crate::dir::{hardlink, rename, Dir, O_DIRECTORY, O_PATH, O_SEARCH};
 pub use crate::filetype::SimpleType;
-pub use crate::metadata::Metadata;
-
-use std::ffi::CString;
-use std::os::unix::io::RawFd;
-
-/// A safe wrapper around directory file descriptor
-///
-/// Construct it either with ``Dir::cwd()`` or ``Dir::open(path)``
-///
-#[derive(Debug)]
-pub struct Dir(RawFd);
-
-/// Entry returned by iterating over `DirIter` iterator
-#[derive(Debug)]
-pub struct Entry {
-    name: CString,
-    file_type: Option<SimpleType>,
-}
+pub use crate::list::{DirIter, Entry};
+pub use crate::metadata::{metadata_types, Metadata};
+pub use crate::name::AsPath;
 
 #[cfg(test)]
 mod test {
     use std::mem;
+
     use super::Dir;
 
-    fn assert_sync<T: Sync>(x: T) -> T { x }
-    fn assert_send<T: Send>(x: T) -> T { x }
+    fn assert_sync<T: Sync>(x: T) -> T {
+        x
+    }
+    fn assert_send<T: Send>(x: T) -> T {
+        x
+    }
 
     #[test]
     fn test() {
-        let d = Dir(3);
+        let d = Dir::new(3);
         let d = assert_sync(d);
         let d = assert_send(d);
         // don't execute close for our fake RawFd
         mem::forget(d);
     }
 }
-
